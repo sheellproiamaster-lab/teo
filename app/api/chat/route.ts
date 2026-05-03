@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 
-// GPT-4o-mini: executor do dia a dia
+// GPT-4o-mini: executor do dia a dia — Claude reservado para tarefas avançadas/VIP
 const getOpenAI = () => new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// Claude (Anthropic) reservado para tarefas avançadas/VIP — importar quando necessário
 
 const tools: OpenAI.Chat.ChatCompletionTool[] = [
   {
@@ -47,7 +45,7 @@ async function tavilySearch(query: string): Promise<string> {
       .join("\n\n");
     return answer + results || "Nenhum resultado encontrado.";
   } catch {
-    return "Erro ao realizar a pesquisa.";
+    return "Nenhum resultado encontrado.";
   }
 }
 
@@ -68,58 +66,70 @@ export async function POST(req: NextRequest) {
     const openai = getOpenAI();
     const { messages } = await req.json();
 
-    const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-      { role: "system", content: SYSTEM_PROMPT },
-      ...messages.map((m: { role: string; content: string }) => ({
+    const history: OpenAI.Chat.ChatCompletionMessageParam[] = messages.map(
+      (m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
-      })),
-    ];
+      })
+    );
 
-    // GPT-4o-mini como cérebro principal
-    const first = await openai.chat.completions.create({
+    // Passo 1: GPT decide se precisa buscar
+    const decision = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      max_tokens: 1024,
-      temperature: 0.7,
-      messages: openaiMessages,
+      max_tokens: 100,
+      temperature: 0,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        ...history,
+      ],
       tools,
       tool_choice: "auto",
     });
 
-    const firstMessage = first.choices[0].message;
-    const toolCall = firstMessage.tool_calls?.[0];
+    const decisionMessage = decision.choices[0].message;
+    const toolCall = decisionMessage.tool_calls?.[0];
 
+    // Se precisa buscar: pesquisa direto e responde em uma chamada limpa
     if (toolCall) {
       const { query } = JSON.parse(toolCall.function.arguments) as { query: string };
+      const searchResults = await tavilySearch(query);
 
-      const rawResults = await tavilySearch(query);
-
-      // Segunda chamada sem tools para forçar resposta em texto
-      const second = await openai.chat.completions.create({
+      const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
-        max_tokens: 1024,
+        max_tokens: 800,
         temperature: 0.7,
         messages: [
-          ...openaiMessages,
-          firstMessage,
           {
-            role: "tool",
-            tool_call_id: toolCall.id,
-            content: rawResults,
+            role: "system",
+            content: `${SYSTEM_PROMPT}\n\nResultados de busca para "${query}":\n${searchResults}`,
           },
+          ...history,
         ],
       });
 
-      const rawText = second.choices[0].message.content || "Ocorreu um erro. Tente novamente.";
+      const rawText = response.choices[0].message.content ?? "Não consegui buscar essa informação agora.";
       const { content, questionCards } = parseOptions(rawText);
-
       return NextResponse.json({ content, searched: true, query, questionCards });
     }
 
-    const rawText = firstMessage.content || "Ocorreu um erro. Tente novamente.";
-    const { content, questionCards } = parseOptions(rawText);
+    // Sem busca: responde direto
+    if (decisionMessage.content) {
+      const { content, questionCards } = parseOptions(decisionMessage.content);
+      return NextResponse.json({ content, questionCards });
+    }
 
+    // Fallback: chamada limpa sem tools
+    const fallback = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_tokens: 800,
+      temperature: 0.7,
+      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...history],
+    });
+
+    const rawText = fallback.choices[0].message.content ?? "Não entendi. Pode reformular?";
+    const { content, questionCards } = parseOptions(rawText);
     return NextResponse.json({ content, questionCards });
+
   } catch (err) {
     console.error("[chat/route]", err);
     return NextResponse.json(
