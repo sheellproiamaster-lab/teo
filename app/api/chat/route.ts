@@ -26,7 +26,7 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
 async function tavilySearch(query: string): Promise<string> {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     const res = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
