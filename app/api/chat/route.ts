@@ -51,6 +51,8 @@ function parseOptions(text: string): { content: string; questionCards: { q: stri
   }
 }
 
+export const maxDuration = 30;
+
 export async function POST(req: NextRequest) {
   try {
     const openai = getOpenAI();
