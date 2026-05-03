@@ -1,8 +1,17 @@
 "use client";
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { useChat } from "@/context/ChatContext";
+
+const suggestions = [
+  "Como organizar a rotina do meu filho?",
+  "Quais terapias são indicadas para TEA?",
+  "Como preparar meu filho para a escola?",
+];
 
 export default function WelcomeScreen() {
+  const { sendMessage } = useChat();
+
   return (
     <div className="flex flex-col items-center justify-center flex-1 px-4 py-10 text-center">
       {/* Avatar flutuando */}
@@ -25,16 +34,13 @@ export default function WelcomeScreen() {
         </div>
       </motion.div>
 
-      {/* Premium card */}
+      {/* Card de boas-vindas */}
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ delay: 0.3, duration: 0.5 }}
         className="relative w-full max-w-sm bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 rounded-2xl px-6 py-5 shadow-lg"
       >
-        <div className="absolute top-3 right-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">
-          VIP
-        </div>
         <p className="text-blue-900 font-bold text-lg leading-snug">
           Converse com o Teo sobre tudo que você precisar
         </p>
@@ -43,17 +49,18 @@ export default function WelcomeScreen() {
         </p>
       </motion.div>
 
-      {/* Suggestions */}
+      {/* Sugestões clicáveis */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.6, duration: 0.5 }}
         className="mt-6 flex flex-wrap justify-center gap-2 max-w-sm"
       >
-        {["Como organizar a rotina do meu filho?", "Quais terapias são indicadas para TEA?", "Como preparar meu filho para a escola?"].map(s => (
+        {suggestions.map(s => (
           <button
             key={s}
-            className="text-xs text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 hover:border-blue-300 rounded-full px-3 py-1.5 transition-colors"
+            onClick={() => sendMessage(s)}
+            className="text-xs text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 hover:border-blue-300 rounded-full px-3 py-1.5 transition-colors cursor-pointer"
           >
             {s}
           </button>

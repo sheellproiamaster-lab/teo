@@ -59,8 +59,8 @@ export async function POST(req: NextRequest) {
       messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
       tools: [searchTool],
       tool_choice: "auto",
-      max_tokens: 500,
-      temperature: 0.5,
+      max_tokens: 1000,
+      temperature: 0.75,
     });
 
     const choice = first.choices[0].message;
@@ -79,8 +79,8 @@ export async function POST(req: NextRequest) {
           choice,
           { role: "tool", tool_call_id: call.id, content: searchResult },
         ],
-        max_tokens: 500,
-        temperature: 0.5,
+        max_tokens: 1000,
+        temperature: 0.75,
       });
 
       return NextResponse.json({

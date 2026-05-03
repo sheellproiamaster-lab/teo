@@ -21,7 +21,7 @@ export default function RotatingCards() {
         setCurrent(p => (p + 1) % cards.length);
         setVisible(true);
       }, 500);
-    }, 7000);
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 

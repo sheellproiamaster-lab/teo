@@ -33,7 +33,6 @@ export default function ChatMain({ onMenuToggle }: Props) {
         </button>
         <div className="flex items-center gap-2">
           <span className="text-lg font-black text-blue-600">Teo</span>
-          <span className="text-xs bg-green-100 text-green-600 font-semibold px-2 py-0.5 rounded-full">online</span>
         </div>
       </header>
 

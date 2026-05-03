@@ -79,43 +79,64 @@ export default function AuthPage() {
           </div>
         ))}
 
-        <div className="relative z-10 flex flex-col items-center gap-6 w-full max-w-sm">
-          {/* Mini TEO puzzle */}
-          <div className="flex items-center gap-2">
+        <div className="relative z-10 flex flex-col items-center gap-5 w-full max-w-sm">
+          {/* TEO puzzle maior */}
+          <div className="flex items-center gap-3">
             {(["T","E","O"] as const).map(l => (
               <motion.div key={l} variants={letterEnter[l]} initial="hidden" animate="visible"
                 transition={{ type:"spring", stiffness:80, damping:14, delay: delays[l] }}>
-                <div className="relative w-14 h-14 drop-shadow-lg">
+                <div className="relative w-20 h-20 drop-shadow-xl">
                   <svg viewBox="-15 -15 130 130" width="100%" height="100%">
                     <defs>
                       <linearGradient id={`ag-${l}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="rgba(255,255,255,0.9)" />
-                        <stop offset="100%" stopColor="rgba(255,255,255,0.6)" />
+                        <stop offset="0%" stopColor="rgba(255,255,255,0.95)" />
+                        <stop offset="100%" stopColor="rgba(255,255,255,0.65)" />
                       </linearGradient>
                     </defs>
                     <path d={PUZZLE_PATH} fill={`url(#ag-${l})`} />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-xl font-black text-blue-700">{l}</span>
+                  <span className="absolute inset-0 flex items-center justify-center text-3xl font-black text-blue-700">{l}</span>
                 </div>
               </motion.div>
             ))}
           </div>
 
-          {/* Avatar floating */}
+          {/* Nome e tagline */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.0, duration: 0.5 }}
+            className="text-center"
+          >
+            <p className="text-5xl font-black text-white tracking-tight drop-shadow-lg leading-none">Teo</p>
+            <p className="text-white/70 text-sm font-medium mt-1 tracking-wide">Seu parceiro para famílias especiais</p>
+          </motion.div>
+
+          {/* Avatar com float intenso */}
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 1.1, duration: 0.6 }}
-            className="avatar-float"
+            animate={{
+              opacity: 1,
+              scale: 1,
+              y: [0, -22, 0],
+            }}
+            transition={{
+              opacity: { delay: 1.1, duration: 0.6 },
+              scale: { delay: 1.1, duration: 0.6 },
+              y: { delay: 1.8, duration: 2.8, repeat: Infinity, ease: "easeInOut" },
+            }}
           >
-            <div className="relative w-28 h-28 rounded-full border-4 border-white/50 shadow-2xl overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
-                <svg viewBox="0 0 100 100" className="w-16 h-16 text-white/70">
-                  <circle cx="50" cy="34" r="19" fill="currentColor" />
-                  <path d="M 12 88 Q 12 62 50 62 Q 88 62 88 88 Z" fill="currentColor" />
-                </svg>
+            <div className="relative">
+              <div className="absolute -inset-3 rounded-full border-2 border-dashed border-white/30 spin-slow pointer-events-none" />
+              <div className="relative w-44 h-44 rounded-full border-4 border-white/60 shadow-2xl overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+                  <svg viewBox="0 0 100 100" className="w-24 h-24 text-white/70">
+                    <circle cx="50" cy="34" r="19" fill="currentColor" />
+                    <path d="M 12 88 Q 12 62 50 62 Q 88 62 88 88 Z" fill="currentColor" />
+                  </svg>
+                </div>
+                <Image src="/teo-avatar.jpeg" alt="Teo" fill className="object-cover" />
               </div>
-              <Image src="/teo-avatar.jpeg" alt="Teo" fill className="object-cover" />
             </div>
           </motion.div>
 
@@ -135,15 +156,15 @@ export default function AuthPage() {
       <div className="md:w-1/2 flex flex-col items-center justify-center p-8 md:p-12 bg-white">
         <div className="w-full max-w-md">
 
-          {/* Premium badge */}
+          {/* Header direito */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             className="mb-8"
           >
-            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-xs font-bold uppercase tracking-widest px-4 py-1.5 rounded-full mb-4 shadow">
-              ✦ Acesso Premium
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-xs font-semibold px-4 py-1.5 rounded-full mb-4 shadow">
+              ✦ Tenha a melhor experiência a partir de agora
             </div>
             <h2 className="text-2xl md:text-3xl font-black text-blue-900 leading-tight mb-2">
               A melhor decisão começa com{" "}

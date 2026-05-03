@@ -46,11 +46,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } catch {}
   }, []);
 
-  const persist = useCallback((convs: Conversation[]) => {
-    setConversations(convs);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(convs));
-  }, []);
-
   const active = conversations.find(c => c.id === activeId) ?? null;
 
   const newConversation = useCallback(() => {
@@ -100,19 +95,31 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       timestamp: new Date().toISOString(),
     };
 
-    let targetId: string;
+    // Build API messages from current state before any updates
+    const existingConv = activeId ? conversations.find(c => c.id === activeId) : null;
+    const apiMessages = [
+      ...(existingConv?.messages ?? []),
+      userMsg,
+    ].map(m => ({ role: m.role, content: m.content }));
+
+    // Determine target conversation ID upfront
+    const targetId: string = existingConv ? activeId! : crypto.randomUUID();
+    const isNew = !existingConv;
 
     setConversations(prev => {
-      const existing = activeId ? prev.find(c => c.id === activeId) : null;
+      const existing = existingConv ? prev.find(c => c.id === targetId) : null;
       if (existing) {
-        targetId = existing.id;
-        return prev.map(c => c.id === targetId ? {
+        const updated = prev.map(c => c.id === targetId ? {
           ...c,
           messages: [...c.messages, userMsg],
-          title: c.messages.length === 0 ? content.slice(0, 45) : c.title,
+          // Only auto-title if still using the default name
+          title: c.messages.length === 0 && c.title === "Nova conversa"
+            ? content.slice(0, 45) + (content.length > 45 ? "…" : "")
+            : c.title,
         } : c);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        return updated;
       } else {
-        targetId = crypto.randomUUID();
         const newConv: Conversation = {
           id: targetId,
           title: content.slice(0, 45) + (content.length > 45 ? "…" : ""),
@@ -120,22 +127,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           createdAt: new Date().toISOString(),
           isFavorite: false,
         };
-        setActiveId(targetId);
-        return [newConv, ...prev];
+        const updated = [newConv, ...prev];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        return updated;
       }
     });
 
-    // slight delay to let state settle
-    await new Promise(r => setTimeout(r, 50));
+    if (isNew) setActiveId(targetId);
 
     try {
-      let apiMessages: { role: string; content: string }[] = [];
-      setConversations(prev => {
-        const conv = prev.find(c => c.id === targetId!);
-        if (conv) apiMessages = conv.messages.map(m => ({ role: m.role, content: m.content }));
-        return prev;
-      });
-
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -151,7 +151,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       };
 
       setConversations(prev => {
-        const updated = prev.map(c => c.id === targetId! ? { ...c, messages: [...c.messages, assistantMsg] } : c);
+        const updated = prev.map(c => c.id === targetId ? { ...c, messages: [...c.messages, assistantMsg] } : c);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
         return updated;
       });
@@ -162,14 +162,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         timestamp: new Date().toISOString(),
       };
       setConversations(prev => {
-        const updated = prev.map(c => c.id === targetId! ? { ...c, messages: [...c.messages, errMsg] } : c);
+        const updated = prev.map(c => c.id === targetId ? { ...c, messages: [...c.messages, errMsg] } : c);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
         return updated;
       });
     } finally {
       setIsLoading(false);
     }
-  }, [activeId]);
+  }, [activeId, conversations]);
 
   return (
     <ChatContext.Provider value={{
