@@ -25,9 +25,12 @@ const tools: OpenAI.Chat.ChatCompletionTool[] = [
 
 async function tavilySearch(query: string): Promise<string> {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     const res = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         api_key: process.env.TAVILY_API_KEY,
         query,
@@ -44,7 +47,13 @@ async function tavilySearch(query: string): Promise<string> {
       )
       .join("\n\n");
     return answer + results || "Nenhum resultado encontrado.";
-  } catch {
+  } catch (err: unknown) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === "AbortError") {
+      console.error("[tavilySearch] Timeout 8s:", query);
+    } else {
+      console.error("[tavilySearch] Erro:", err);
+    }
     return "Nenhum resultado encontrado.";
   }
 }
