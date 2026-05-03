@@ -102,22 +102,7 @@ export async function POST(req: NextRequest) {
     if (toolCall) {
       const { query } = JSON.parse(toolCall.function.arguments) as { query: string };
       const searchResults = await tavilySearch(query);
-
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        max_tokens: 800,
-        temperature: 0.7,
-        messages: [
-          {
-            role: "system",
-            content: `${SYSTEM_PROMPT}\n\nResultados de busca para "${query}":\n${searchResults}`,
-          },
-          ...history,
-        ],
-      });
-
-      const rawText = response.choices[0].message.content ?? "Não consegui buscar essa informação agora.";
-      const { content, questionCards } = parseOptions(rawText);
+      const { content, questionCards } = parseOptions(searchResults);
       return NextResponse.json({ content, searched: true, query, questionCards });
     }
 
