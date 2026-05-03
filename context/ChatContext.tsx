@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from "react";
 
 export interface QuestionCards {
   q: string;
@@ -44,6 +44,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const conversationsRef = useRef<Conversation[]>([]);
+
+  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
 
   useEffect(() => {
     try {
@@ -101,27 +104,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       timestamp: new Date().toISOString(),
     };
 
-    // Build API messages from current state before any updates
-    const existingConv = activeId ? conversations.find(c => c.id === activeId) : null;
-    const apiMessages = [
-      ...(existingConv?.messages ?? []),
-      userMsg,
-    ].map(m => ({ role: m.role, content: m.content }));
+    // Always use activeId if available; only generate new id when starting fresh
+    const targetId: string = activeId ?? crypto.randomUUID();
+    const isNew = !activeId;
 
-    // Determine target conversation ID upfront
-    const targetId: string = existingConv ? activeId! : crypto.randomUUID();
-    const isNew = !existingConv;
+    // Read latest conversations synchronously from ref to build apiMessages
+    const currentConv = conversationsRef.current.find(c => c.id === targetId);
+    const apiMessages = [...(currentConv?.messages ?? []), userMsg].map(m => ({ role: m.role, content: m.content }));
 
     setConversations(prev => {
-      const existing = existingConv ? prev.find(c => c.id === targetId) : null;
+      const existing = prev.find(c => c.id === targetId);
       if (existing) {
+        const autoTitle = existing.messages.length === 0 && existing.title === "Nova conversa"
+          ? content.slice(0, 45) + (content.length > 45 ? "…" : "")
+          : existing.title;
         const updated = prev.map(c => c.id === targetId ? {
           ...c,
           messages: [...c.messages, userMsg],
-          // Only auto-title if still using the default name
-          title: c.messages.length === 0 && c.title === "Nova conversa"
-            ? content.slice(0, 45) + (content.length > 45 ? "…" : "")
-            : c.title,
+          title: autoTitle,
         } : c);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
         return updated;
@@ -176,7 +176,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [activeId, conversations]);
+  }, [activeId]);
 
   return (
     <ChatContext.Provider value={{

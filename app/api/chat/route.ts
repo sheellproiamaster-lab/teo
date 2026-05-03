@@ -1,22 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 
-const getAnthropic = () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// GPT-4o-mini: executor do dia a dia
 const getOpenAI = () => new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const tools: Anthropic.Tool[] = [
+// Claude (Anthropic) reservado para tarefas avançadas/VIP — importar quando necessário
+
+const tools: OpenAI.Chat.ChatCompletionTool[] = [
   {
-    name: "search_web",
-    description:
-      "Pesquisa informações atualizadas na internet. Use quando precisar de dados em tempo real: especialistas, clínicas, preços, eventos recentes, notícias ou qualquer informação que possa estar desatualizada.",
-    input_schema: {
-      type: "object" as const,
-      properties: {
-        query: { type: "string", description: "Termo de busca em português" },
+    type: "function",
+    function: {
+      name: "search_web",
+      description:
+        "Pesquisa informações atualizadas na internet. Use quando precisar de dados em tempo real: especialistas, clínicas, preços, eventos recentes, notícias ou qualquer informação que possa estar desatualizada.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Termo de busca em português" },
+        },
+        required: ["query"],
       },
-      required: ["query"],
     },
   },
 ];
@@ -47,28 +51,6 @@ async function tavilySearch(query: string): Promise<string> {
   }
 }
 
-async function summarizeWithGPT(rawResults: string): Promise<string> {
-  try {
-    const openai = getOpenAI();
-    const res = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "Você é um assistente de pesquisa. Resuma os resultados de busca abaixo de forma clara, objetiva e em português. Mantenha apenas as informações mais relevantes e úteis.",
-        },
-        { role: "user", content: rawResults },
-      ],
-      max_tokens: 400,
-      temperature: 0.3,
-    });
-    return res.choices[0].message.content || rawResults;
-  } catch {
-    return rawResults;
-  }
-}
-
 function parseOptions(text: string): { content: string; questionCards: { q: string; o: string[] } | null } {
   const match = text.match(/\[OPTIONS\]([\s\S]*?)\[\/OPTIONS\]/);
   if (!match) return { content: text.trim(), questionCards: null };
@@ -83,76 +65,58 @@ function parseOptions(text: string): { content: string; questionCards: { q: stri
 
 export async function POST(req: NextRequest) {
   try {
-    const anthropic = getAnthropic();
+    const openai = getOpenAI();
     const { messages } = await req.json();
 
-    const anthropicMessages: Anthropic.MessageParam[] = messages.map(
-      (m: { role: string; content: string }) => ({
+    const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...messages.map((m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
-      })
-    );
+      })),
+    ];
 
-    // Claude as main brain
-    const first = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+    // GPT-4o-mini como cérebro principal
+    const first = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
       max_tokens: 1024,
-      system: [
-        {
-          type: "text",
-          text: SYSTEM_PROMPT,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages: anthropicMessages,
+      temperature: 0.7,
+      messages: openaiMessages,
       tools,
+      tool_choice: "auto",
     });
 
-    const toolUseBlock = first.content.find((b) => b.type === "tool_use");
+    const firstMessage = first.choices[0].message;
+    const toolCall = firstMessage.tool_calls?.[0];
 
-    if (toolUseBlock && toolUseBlock.type === "tool_use") {
-      const { query } = toolUseBlock.input as { query: string };
+    if (toolCall) {
+      const { query } = JSON.parse(toolCall.function.arguments) as { query: string };
 
-      // Tavily searches → GPT summarizes → Claude responds
       const rawResults = await tavilySearch(query);
-      const summarized = await summarizeWithGPT(rawResults);
 
-      const second = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
+      // Segunda chamada sem tools para forçar resposta em texto
+      const second = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
         max_tokens: 1024,
-        system: [
-          {
-            type: "text",
-            text: SYSTEM_PROMPT,
-            cache_control: { type: "ephemeral" },
-          },
-        ],
+        temperature: 0.7,
         messages: [
-          ...anthropicMessages,
-          { role: "assistant", content: first.content },
+          ...openaiMessages,
+          firstMessage,
           {
-            role: "user",
-            content: [
-              {
-                type: "tool_result",
-                tool_use_id: toolUseBlock.id,
-                content: summarized,
-              },
-            ],
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: rawResults,
           },
         ],
-        tools,
       });
 
-      const textBlock = second.content.find((b) => b.type === "text");
-      const rawText = textBlock?.type === "text" ? textBlock.text : "Ocorreu um erro. Tente novamente.";
+      const rawText = second.choices[0].message.content || "Ocorreu um erro. Tente novamente.";
       const { content, questionCards } = parseOptions(rawText);
 
       return NextResponse.json({ content, searched: true, query, questionCards });
     }
 
-    const textBlock = first.content.find((b) => b.type === "text");
-    const rawText = textBlock?.type === "text" ? textBlock.text : "Ocorreu um erro. Tente novamente.";
+    const rawText = firstMessage.content || "Ocorreu um erro. Tente novamente.";
     const { content, questionCards } = parseOptions(rawText);
 
     return NextResponse.json({ content, questionCards });
