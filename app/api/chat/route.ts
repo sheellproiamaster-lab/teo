@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 
-const getOpenAI = () => new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const getAnthropic = () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 async function tavilySearch(query: string): Promise<string> {
   const res = await fetch("https://api.tavily.com/search", {
@@ -18,26 +18,8 @@ async function tavilySearch(query: string): Promise<string> {
   });
   if (!res.ok) return "Nenhum resultado encontrado.";
   const data = await res.json();
-  const answer = data.answer ?? "";
-  return answer || "Nenhum resultado encontrado.";
+  return data.answer || "Nenhum resultado encontrado.";
 }
-
-const tools: OpenAI.Chat.ChatCompletionTool[] = [
-  {
-    type: "function",
-    function: {
-      name: "search_web",
-      description: "Pesquisa informações atualizadas na internet.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: { type: "string" },
-        },
-        required: ["query"],
-      },
-    },
-  },
-];
 
 function parseOptions(text: string): { content: string; questionCards: { q: string; o: string[] } | null } {
   const match = text.match(/\[OPTIONS\]([\s\S]*?)\[\/OPTIONS\]/);
@@ -55,48 +37,68 @@ export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
   try {
-    const openai = getOpenAI();
+    const anthropic = getAnthropic();
     const { messages } = await req.json();
 
-    const history: OpenAI.Chat.ChatCompletionMessageParam[] = messages.map(
-      (m: { role: string; content: string }) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      })
-    );
+    const history = messages.map((m: { role: string; content: string }) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
 
-    const decision = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 100,
-      temperature: 0,
-      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...history],
-      tools,
-      tool_choice: "auto",
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1024,
+      system: SYSTEM_PROMPT,
+      messages: history,
+      tools: [
+        {
+          name: "search_web",
+          description: "Pesquisa informações atualizadas na internet. Use para dados em tempo real: pessoas, clínicas, preços, eventos, notícias.",
+          input_schema: {
+            type: "object" as const,
+            properties: {
+              query: { type: "string", description: "Termo de busca em português" },
+            },
+            required: ["query"],
+          },
+        },
+      ],
     });
 
-    const decisionMessage = decision.choices[0].message;
-    const toolCall = decisionMessage.tool_calls?.[0];
-
-    if (toolCall) {
-      const { query } = JSON.parse(toolCall.function.arguments) as { query: string };
+    // Claude quer buscar
+    const toolUse = response.content.find((b) => b.type === "tool_use");
+    if (toolUse && toolUse.type === "tool_use") {
+      const query = (toolUse.input as { query: string }).query;
       const searchResults = await tavilySearch(query);
-      const { content, questionCards } = parseOptions(searchResults);
+
+      // Manda resultado de volta pro Claude responder
+      const final = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        messages: [
+          ...history,
+          { role: "assistant", content: response.content },
+          {
+            role: "user",
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: toolUse.id,
+                content: searchResults,
+              },
+            ],
+          },
+        ],
+      });
+
+      const rawText = final.content.find((b) => b.type === "text")?.text ?? "Não consegui buscar essa informação.";
+      const { content, questionCards } = parseOptions(rawText);
       return NextResponse.json({ content, searched: true, query, questionCards });
     }
 
-    if (decisionMessage.content) {
-      const { content, questionCards } = parseOptions(decisionMessage.content);
-      return NextResponse.json({ content, questionCards });
-    }
-
-    const fallback = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 800,
-      temperature: 0.7,
-      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...history],
-    });
-
-    const rawText = fallback.choices[0].message.content ?? "Não entendi. Pode reformular?";
+    // Resposta direta sem busca
+    const rawText = response.content.find((b) => b.type === "text")?.text ?? "Não entendi. Pode reformular?";
     const { content, questionCards } = parseOptions(rawText);
     return NextResponse.json({ content, questionCards });
 
