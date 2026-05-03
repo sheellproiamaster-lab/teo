@@ -1,12 +1,18 @@
 "use client";
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 
+export interface QuestionCards {
+  q: string;
+  o: string[];
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: string;
   searched?: boolean;
+  questionCards?: QuestionCards | null;
 }
 
 export interface Conversation {
@@ -148,6 +154,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         content: data.content || "Ocorreu um erro. Tente novamente.",
         timestamp: new Date().toISOString(),
         searched: data.searched,
+        questionCards: data.questionCards ?? null,
       };
 
       setConversations(prev => {
