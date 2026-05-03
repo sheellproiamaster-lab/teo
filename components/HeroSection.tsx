@@ -84,9 +84,12 @@ export default function HeroSection() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.9, duration: 0.7 }}
-          className="text-xl md:text-2xl font-medium text-blue-700 max-w-lg leading-relaxed"
+          className="text-xl md:text-2xl italic text-blue-800 max-w-lg leading-relaxed text-center"
         >
-          Inteligência e afeto para quem cuida de quem ama
+          Um{" "}
+          <span className="text-cyan-500 not-italic font-semibold">amigo especial</span>
+          {" "}que está sempre junto com{" "}
+          <span className="text-blue-500 not-italic font-semibold">sua família</span>
         </motion.p>
 
         {/* Avatar */}

@@ -1,11 +1,12 @@
 "use client";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 const features = [
   {
     icon: "🩺",
     title: "Consultas e orientações",
-    desc: "Tire dúvidas sobre diagnósticos, terapias, medicamentos e caminhos clínicos. O Teo explica com clareza e empatia.",
+    desc: "O Teo é uma inteligência artificial e não substitui nenhum médico ou especialista. Mas oferece suporte completo em orientações, análises detalhadas e planos de ação para que você chegue a cada consulta mais preparado.",
   },
   {
     icon: "📅",
@@ -18,9 +19,9 @@ const features = [
     desc: "Crie listas de tarefas, lembretes e planos de atividades que ajudam na autonomia e no desenvolvimento diário.",
   },
   {
-    icon: "💙",
-    title: "Suporte emocional",
-    desc: "Acolhimento para os momentos difíceis. O Teo ouve, compreende e oferece suporte emocional à família toda.",
+    icon: "🔍",
+    title: "Pesquisa e estratégia",
+    desc: "O Teo pesquisa os melhores especialistas para o seu caso, entende cada situação com profundidade e oferece a melhor estratégia para você ter mais praticidade nas decisões do dia a dia.",
   },
   {
     icon: "📚",
@@ -35,6 +36,8 @@ const features = [
 ];
 
 export default function FeaturesSection() {
+  const router = useRouter();
+
   return (
     <section id="funcionalidades" className="py-24 px-6 bg-gradient-to-b from-blue-50 to-white">
       <div className="max-w-6xl mx-auto">
@@ -76,7 +79,6 @@ export default function FeaturesSection() {
           ))}
         </div>
 
-        {/* CTA */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -90,7 +92,8 @@ export default function FeaturesSection() {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.97 }}
-            className="bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white font-bold text-lg px-10 py-4 rounded-full shadow-lg shadow-blue-200 transition-all duration-200"
+            onClick={() => router.push("/auth")}
+            className="bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white font-bold text-lg px-10 py-4 rounded-full shadow-lg shadow-blue-200 transition-all duration-200 cursor-pointer"
           >
             Comece agora com o Teo
           </motion.button>

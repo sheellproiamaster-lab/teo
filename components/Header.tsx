@@ -1,7 +1,9 @@
 "use client";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 export default function Header() {
+  const router = useRouter();
   return (
     <motion.header
       initial={{ y: -80, opacity: 0 }}
@@ -16,7 +18,8 @@ export default function Header() {
       <motion.button
         whileHover={{ scale: 1.04 }}
         whileTap={{ scale: 0.97 }}
-        className="bg-blue-600 hover:bg-blue-700 text-white text-sm md:text-base font-semibold px-5 md:px-7 py-2.5 rounded-full shadow-md transition-colors duration-200"
+        onClick={() => router.push("/auth")}
+        className="bg-blue-600 hover:bg-blue-700 text-white text-sm md:text-base font-semibold px-5 md:px-7 py-2.5 rounded-full shadow-md transition-colors duration-200 cursor-pointer"
       >
         Acesse o Teo agora
       </motion.button>
