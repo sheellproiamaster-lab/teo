@@ -7,9 +7,8 @@ export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt, title } = await req.json();
+    const { prompt } = await req.json();
 
-    // Enriquece o prompt para qualidade máxima e texto em português
     const enrichedPrompt = `${prompt}. 
     Important: Any text visible in the image must be written in Brazilian Portuguese (pt-BR). 
     High quality, professional, detailed, 4K resolution. 
@@ -24,10 +23,10 @@ export async function POST(req: NextRequest) {
       style: "natural",
     });
 
-    const imageUrl = response.data[0]?.url;
+    const imageUrl = response.data?.[0]?.url ?? null;
     if (!imageUrl) throw new Error("Nenhuma imagem gerada");
 
-    return NextResponse.json({ url: imageUrl, title });
+    return NextResponse.json({ url: imageUrl });
   } catch (err) {
     console.error("[generate/image]", err);
     return NextResponse.json({ error: "Erro ao gerar imagem" }, { status: 500 });
