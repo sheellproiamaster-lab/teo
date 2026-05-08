@@ -2,14 +2,26 @@
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { useChat } from "@/context/ChatContext";
+import { useRef } from "react";
 
-const suggestions = [
-  "Como organizar a rotina do meu filho?",
-  "Quais terapias são indicadas para TEA?",
-  "Como preparar meu filho para a escola?",
+const TOP_CARDS = [
+  "Meu filho/filha não para quieto e não consigo ajudar",
+  "Tô esgotado, não aguento mais sozinho",
+  "A escola não sabe lidar com meu filho/filha",
+  "Como conversar com quem não entende?",
 ];
 
-export default function WelcomeScreen() {
+const BOTTOM_CARDS = [
+  "Quais estratégias realmente funcionam para o desenvolvimento?",
+  "Como lidar com as crises em casa?",
+  "Nossos direitos — o que a lei garante?",
+];
+
+interface Props {
+  inputRef?: React.RefObject<HTMLTextAreaElement | null>;
+}
+
+export default function WelcomeScreen({ inputRef }: Props) {
   const { sendMessage } = useChat();
 
   return (
@@ -39,7 +51,7 @@ export default function WelcomeScreen() {
         initial={{ opacity: 0, y: 20, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ delay: 0.3, duration: 0.5 }}
-        className="relative w-full max-w-sm bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 rounded-2xl px-6 py-5 shadow-lg"
+        className="relative w-full max-w-sm bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 rounded-2xl px-6 py-5 shadow-lg mb-6"
       >
         <p className="text-blue-900 font-bold text-lg leading-snug">
           Converse com o Teo sobre tudo que você precisar
@@ -49,22 +61,37 @@ export default function WelcomeScreen() {
         </p>
       </motion.div>
 
-      {/* Sugestões clicáveis */}
+      {/* Cards - 4 em cima */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.6, duration: 0.5 }}
-        className="mt-6 flex flex-wrap justify-center gap-2 max-w-sm"
+        transition={{ delay: 0.5, duration: 0.5 }}
+        className="w-full max-w-lg flex flex-col gap-2 mb-2"
       >
-        {suggestions.map(s => (
-          <button
-            key={s}
-            onClick={() => sendMessage(s)}
-            className="text-xs text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 hover:border-blue-300 rounded-full px-3 py-1.5 transition-colors cursor-pointer"
-          >
-            {s}
-          </button>
-        ))}
+        <div className="grid grid-cols-2 gap-2">
+          {TOP_CARDS.map(s => (
+            <button
+              key={s}
+              onClick={() => sendMessage(s)}
+              className="text-xs text-blue-700 bg-blue-50 border border-blue-100 hover:bg-blue-100 hover:border-blue-300 rounded-2xl px-3 py-3 transition-colors cursor-pointer text-left font-medium leading-snug"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
+        {/* 3 embaixo */}
+        <div className="grid grid-cols-3 gap-2">
+          {BOTTOM_CARDS.map(s => (
+            <button
+              key={s}
+              onClick={() => sendMessage(s)}
+              className="text-xs text-blue-700 bg-blue-50 border border-blue-100 hover:bg-blue-100 hover:border-blue-300 rounded-2xl px-3 py-3 transition-colors cursor-pointer text-left font-medium leading-snug"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
       </motion.div>
     </div>
   );

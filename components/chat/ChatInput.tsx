@@ -1,21 +1,43 @@
 "use client";
 import { useState, useRef } from "react";
-import { useChat } from "@/context/ChatContext";
+import { useChat, type FileAttachment } from "@/context/ChatContext";
 import { useAuth } from "@/context/AuthContext";
 
-export default function ChatInput() {
+const MAX_FILES = 5;
+
+export default function ChatInput({ isWelcome }: { isWelcome?: boolean }) {
   const { sendMessage, isLoading, isBlocked, messagesUsed } = useChat();
   const { user } = useAuth();
   const [text, setText] = useState("");
+  const [files, setFiles] = useState<FileAttachment[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isPro = user?.plan === "pro";
   const DAILY_LIMIT = 15;
 
+  const handleFiles = async (selected: FileList | null) => {
+    if (!selected) return;
+    const arr = Array.from(selected).slice(0, MAX_FILES - files.length);
+    const newFiles: FileAttachment[] = await Promise.all(arr.map(async file => {
+      const isImage = file.type.startsWith("image/");
+      const url = await new Promise<string>(resolve => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+      return { name: file.name, type: file.type, url, isImage };
+    }));
+    setFiles(prev => [...prev, ...newFiles].slice(0, MAX_FILES));
+  };
+
+  const removeFile = (i: number) => setFiles(prev => prev.filter((_, idx) => idx !== i));
+
   const submit = async () => {
     const trimmed = text.trim();
-    if (!trimmed || isLoading || isBlocked) return;
+    if ((!trimmed && files.length === 0) || isLoading || isBlocked) return;
     setText("");
-    await sendMessage(trimmed);
+    setFiles([]);
+    await sendMessage(trimmed, files);
   };
 
   const handleKey = (e: React.KeyboardEvent) => {
@@ -26,7 +48,7 @@ export default function ChatInput() {
     <div className="border-t border-blue-100 bg-white px-4 py-3">
       <div className="max-w-3xl mx-auto">
 
-        {/* Banner de bloqueio */}
+        {/* Banner bloqueio */}
         {isBlocked && (
           <div className="mb-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
             <div>
@@ -46,51 +68,108 @@ export default function ChatInput() {
           </div>
         )}
 
-        <div className={`flex items-end gap-2 bg-slate-50 border rounded-2xl px-3 py-2 transition-all ${
+        <div className={`flex flex-col bg-slate-50 border rounded-2xl px-3 py-2 transition-all ${
           isBlocked
             ? "border-red-200 opacity-60 pointer-events-none"
             : "border-slate-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100"
         }`}>
-          <button
-            onClick={() => fileRef.current?.click()}
-            title="Anexar arquivo"
-            className="flex-shrink-0 w-9 h-9 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-500 flex items-center justify-center transition-colors mb-0.5"
-          >
-            <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5" stroke="currentColor" strokeWidth={2}>
-              <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-            </svg>
-          </button>
-          <input ref={fileRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.txt" />
 
-          <textarea
-            value={text}
-            onChange={e => setText(e.target.value)}
-            onKeyDown={handleKey}
-            placeholder={isBlocked ? "Limite diário atingido..." : "Digite sua mensagem para o Teo..."}
-            rows={1}
-            disabled={isLoading || isBlocked}
-            className="flex-1 bg-transparent resize-none text-sm text-slate-700 placeholder-slate-400 focus:outline-none py-1.5 max-h-32 min-h-[36px]"
-            style={{ lineHeight: "1.5" }}
-            onInput={e => {
-              const t = e.target as HTMLTextAreaElement;
-              t.style.height = "auto";
-              t.style.height = Math.min(t.scrollHeight, 128) + "px";
-            }}
-          />
+          {/* Miniaturas dos arquivos */}
+          {files.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2 pt-1">
+              {files.map((f, i) => (
+                <div key={i} className="relative group">
+                  {f.isImage ? (
+                    <div className="w-16 h-16 rounded-xl overflow-hidden border border-blue-200 shadow-sm relative">
+                      <img src={f.url} alt={f.name} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <button onClick={() => removeFile(i)} className="text-white text-lg font-bold">×</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 rounded-xl border border-blue-200 bg-white shadow-sm flex flex-col items-center justify-center gap-1 relative">
+                      <svg viewBox="0 0 24 24" className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                        <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <span className="text-[9px] text-slate-500 font-medium text-center px-1 leading-tight truncate w-full text-center">{f.name.length > 10 ? f.name.slice(0, 8) + "..." : f.name}</span>
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
+                        <button onClick={() => removeFile(i)} className="text-white text-lg font-bold">×</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
-          <button
-            onClick={submit}
-            disabled={!text.trim() || isLoading || isBlocked}
-            className="flex-shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white flex items-center justify-center transition-all mb-0.5 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
-          >
-            {isLoading ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+          {/* Input row */}
+          <div className="flex items-end gap-2">
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={files.length >= MAX_FILES}
+              title="Anexar arquivo"
+              className="flex-shrink-0 w-9 h-9 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-500 flex items-center justify-center transition-colors mb-0.5 disabled:opacity-40"
+            >
+              <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5" stroke="currentColor" strokeWidth={2}>
+                <path d="M12 5v14M5 12h14" strokeLinecap="round" />
               </svg>
-            )}
-          </button>
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              className="hidden"
+              accept="image/*,.pdf,.doc,.docx,.txt"
+              onChange={e => handleFiles(e.target.files)}
+            />
+
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={e => setText(e.target.value)}
+              onKeyDown={handleKey}
+              placeholder={isBlocked ? "Limite diário atingido..." : isWelcome ? "" : "Digite sua mensagem para o Teo..."}
+              rows={1}
+              disabled={isLoading || isBlocked}
+              onClick={() => { if (isWelcome) textareaRef.current?.focus(); }}
+              className="flex-1 bg-transparent resize-none text-sm text-slate-700 placeholder-slate-400 focus:outline-none py-1.5 max-h-32 min-h-[36px]"
+              style={{ lineHeight: "1.5" }}
+              onInput={e => {
+                const t = e.target as HTMLTextAreaElement;
+                t.style.height = "auto";
+                t.style.height = Math.min(t.scrollHeight, 128) + "px";
+              }}
+            />
+
+            <button
+              onClick={submit}
+              disabled={(!text.trim() && files.length === 0) || isLoading || isBlocked}
+              className="flex-shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white flex items-center justify-center transition-all mb-0.5 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+            >
+              {isLoading ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                </svg>
+              )}
+            </button>
+          </div>
+
+          {/* Placeholder laranja só na tela inicial */}
+          {isWelcome && !text && files.length === 0 && (
+            <div
+              className="absolute inset-0 flex items-center px-14 pointer-events-none rounded-2xl"
+            >
+              <span
+                className="text-sm font-bold pointer-events-auto cursor-text"
+                style={{ color: "#f97316" }}
+                onClick={() => textareaRef.current?.focus()}
+              >
+                Tem outro assunto? Digite aqui →
+              </span>
+            </div>
+          )}
         </div>
 
         <p className="text-center text-xs text-slate-400 mt-2">

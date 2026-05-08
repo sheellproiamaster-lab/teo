@@ -14,9 +14,11 @@ export default function ChatMain({ onMenuToggle }: Props) {
   const { active, isLoading } = useChat();
   const { user } = useAuth();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const messages = active?.messages ?? [];
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const isPro = user?.plan === "pro";
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -42,18 +44,14 @@ export default function ChatMain({ onMenuToggle }: Props) {
     }
   };
 
-  const isPro = user?.plan === "pro";
-
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-slate-50">
-      {/* Toast */}
       {toast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-500 text-white text-sm font-semibold px-5 py-3 rounded-xl shadow-lg">
           {toast}
         </div>
       )}
 
-      {/* Top bar */}
       <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-blue-100 shadow-sm">
         <button
           onClick={onMenuToggle}
@@ -68,7 +66,6 @@ export default function ChatMain({ onMenuToggle }: Props) {
           <span className="text-lg font-black text-blue-600">Teo</span>
         </div>
 
-        {/* Badge plano + botão upgrade */}
         {!isPro ? (
           <button
             onClick={handleUpgrade}
@@ -84,17 +81,15 @@ export default function ChatMain({ onMenuToggle }: Props) {
         )}
       </header>
 
-      {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
-          <WelcomeScreen />
+          <WelcomeScreen inputRef={inputRef} />
         ) : (
           <div className="max-w-3xl mx-auto flex flex-col gap-4">
             {messages.map(msg => (
               <MessageBubble key={msg.id} msg={msg} />
             ))}
 
-            {/* Typing indicator */}
             {isLoading && (
               <div className="flex items-end gap-3">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center flex-shrink-0">
@@ -106,11 +101,7 @@ export default function ChatMain({ onMenuToggle }: Props) {
                 <div className="bg-white border border-blue-100 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
                   <div className="flex gap-1 items-center h-4">
                     {[0, 0.2, 0.4].map(d => (
-                      <div
-                        key={d}
-                        className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"
-                        style={{ animationDelay: `${d}s` }}
-                      />
+                      <div key={d} className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: `${d}s` }} />
                     ))}
                   </div>
                 </div>
@@ -121,7 +112,7 @@ export default function ChatMain({ onMenuToggle }: Props) {
         )}
       </div>
 
-      <ChatInput />
+      <ChatInput isWelcome={messages.length === 0} inputRef={inputRef} />
     </div>
   );
 }

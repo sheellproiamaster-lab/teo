@@ -8,6 +8,13 @@ export interface QuestionCards {
   o: string[];
 }
 
+export interface FileAttachment {
+  name: string;
+  type: string;
+  url: string; // base64 ou object URL para preview
+  isImage: boolean;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
@@ -15,6 +22,7 @@ export interface Message {
   timestamp: string;
   searched?: boolean;
   questionCards?: QuestionCards | null;
+  attachments?: FileAttachment[];
 }
 
 export interface Conversation {
@@ -37,7 +45,7 @@ interface ChatContextType {
   deleteConversation: (id: string) => void;
   renameConversation: (id: string, title: string) => void;
   toggleFavorite: (id: string) => void;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, attachments?: FileAttachment[]) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -62,7 +70,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
 
-  // Carrega uso do dia
   useEffect(() => {
     if (!user) return;
     const key = getUsageKey(user.id);
@@ -70,7 +77,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setMessagesUsed(stored);
   }, [user]);
 
-  // Carrega conversas do Supabase
   useEffect(() => {
     if (!user) { setConversations([]); setActiveId(null); return; }
     const load = async () => {
@@ -100,6 +106,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             content: m.content,
             timestamp: m.created_at,
             questionCards: null,
+            attachments: [],
           })),
         };
       }));
@@ -110,7 +117,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const isBlocked = !isPro && messagesUsed >= DAILY_LIMIT;
-
   const active = conversations.find(c => c.id === activeId) ?? null;
 
   const newConversation = useCallback(() => {
@@ -138,12 +144,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setConversations(prev => prev.map(c => c.id === id ? { ...c, isFavorite: !c.isFavorite } : c));
   }, []);
 
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = useCallback(async (content: string, attachments?: FileAttachment[]) => {
     if (!user) return;
 
-    // Verifica limite para usuários gratuitos
     if (!isPro && messagesUsed >= DAILY_LIMIT) {
-      // Inicia cooldown de 6 horas se ainda não iniciou
       const cooldownKey = getCooldownKey(user.id);
       const existing = localStorage.getItem(cooldownKey);
       if (!existing) {
@@ -155,7 +159,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     setIsLoading(true);
 
-    // Incrementa contador de uso
     if (!isPro) {
       const key = getUsageKey(user.id);
       const newCount = messagesUsed + 1;
@@ -166,6 +169,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const userMsg: Message = {
       id: crypto.randomUUID(), role: "user", content,
       timestamp: new Date().toISOString(),
+      attachments: attachments || [],
     };
 
     const targetId: string = activeId ?? crypto.randomUUID();
@@ -174,7 +178,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const apiMessages = [...(currentConv?.messages ?? []), userMsg].map(m => ({ role: m.role, content: m.content }));
 
     if (isNew || !currentConv) {
-      const title = content.slice(0, 45) + (content.length > 45 ? "…" : "");
+      const title = content.slice(0, 45) + (content.length > 45 ? "…" : "") || (attachments?.length ? `${attachments.length} arquivo(s)` : "Nova conversa");
       await supabase.from("conversations").insert({ id: targetId, user_id: user.id, title });
       setConversations(prev => [{
         id: targetId, title, messages: [userMsg],
