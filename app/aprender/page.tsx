@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useChat, ChatProvider } from "@/context/ChatContext";
 import Image from "next/image";
+// Adicionado o import solicitado abaixo:
+import MessageBubble from "@/components/chat/MessageBubble";
 
 const LEARN_PROMPTS = [
   "Quero aprender algo novo sobre inclusão e neurodiversidade",
@@ -81,16 +83,10 @@ function AprenderContent() {
         ) : (
           <div className="max-w-3xl mx-auto flex flex-col gap-4">
             {messages.map(msg => (
-              <div key={msg.id} className={`flex items-end gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
-                {msg.role === "assistant" && (
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden border-2 border-blue-200 relative">
-                    <Image src="/teo-avatar.jpeg" alt="Teo" fill className="object-cover" />
-                  </div>
-                )}
-                <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${msg.role === "user" ? "bg-gradient-to-br from-blue-600 to-blue-500 text-white rounded-br-sm shadow-md" : "bg-white border border-blue-100 text-slate-700 rounded-bl-sm shadow-sm"}`}>
-                  {msg.content.replace("[Modo Aprenda com o Teo] ", "")}
-                </div>
-              </div>
+              <MessageBubble key={msg.id} msg={{
+                ...msg,
+                content: msg.content.replace("[Modo Aprenda com o Teo] ", ""),
+              }} />
             ))}
             {isLoading && (
               <div className="flex items-end gap-3">

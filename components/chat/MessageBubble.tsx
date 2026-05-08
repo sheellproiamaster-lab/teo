@@ -31,7 +31,8 @@ export default function MessageBubble({ msg }: { msg: Message }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const { hasDoc, title } = detectDocument(msg.content);
+  const { hasDoc, type: docTypeFromContent, title } = detectDocument(msg.content);
+  const hasDocFinal = hasDoc || !!msg.docType;
   const cleanedContent = cleanContent(msg.content);
 
   const handleOption = (option: string) => sendMessage(option);
@@ -218,7 +219,7 @@ export default function MessageBubble({ msg }: { msg: Message }) {
           </div>
         )}
 
-        {!isUser && hasDoc && (
+        {!isUser && hasDocFinal && (
           <div className="flex gap-2 mt-1">
             <button
               onClick={handleDownloadPDF}

@@ -24,6 +24,7 @@ export interface Message {
   questionCards?: QuestionCards | null;
   attachments?: FileAttachment[];
   imageUrl?: string | null;
+  docType?: "pdf" | "word" | null;
 }
 
 export interface Conversation {
@@ -247,6 +248,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         searched: data.searched,
         questionCards: data.questionCards ?? null,
         imageUrl: data.imageUrl ?? null,
+        docType: data.docType ?? null,
       };
 
       await supabase.from("messages").insert({

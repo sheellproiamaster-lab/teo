@@ -23,14 +23,20 @@ async function tavilySearch(query: string): Promise<string> {
 
 async function generateImage(prompt: string): Promise<string | null> {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/generate/image`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt }),
+    const OpenAI = (await import("openai")).default;
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const enrichedPrompt = `${prompt}. Important: Any text visible in the image must be written in Brazilian Portuguese (pt-BR). High quality, professional, detailed, 4K resolution. Style: warm, inclusive, welcoming, modern illustration.`;
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: enrichedPrompt,
+      n: 1,
+      size: "1024x1024",
+      quality: "hd",
+      style: "natural",
     });
-    const data = await res.json();
-    return data.url || null;
-  } catch {
+    return response.data?.[0]?.url ?? null;
+  } catch (err) {
+    console.error("[generateImage]", err);
     return null;
   }
 }
@@ -65,6 +71,18 @@ function parseImageRequest(text: string): { content: string; imagePrompt: string
   const imagePrompt = match[1].trim();
   const content = text.replace(/\[GERAR_IMAGEM:[\s\S]*?\]/, "").trim();
   return { content, imagePrompt };
+}
+
+function parseDocumentRequest(text: string): { content: string; docType: "pdf" | "word" | null } {
+  const pdfMatch = text.match(/\[GERAR_DOCUMENTO:pdf\]/i);
+  const wordMatch = text.match(/\[GERAR_DOCUMENTO:word\]/i);
+  const content = text
+    .replace(/\[GERAR_DOCUMENTO:pdf\]/gi, "")
+    .replace(/\[GERAR_DOCUMENTO:word\]/gi, "")
+    .trim();
+  if (pdfMatch) return { content, docType: "pdf" };
+  if (wordMatch) return { content, docType: "word" };
+  return { content, docType: null };
 }
 
 interface Attachment {
@@ -131,19 +149,21 @@ async function processResponse(rawText: string): Promise<{
   content: string;
   questionCards: { q: string; o: string[] } | null;
   imageUrl?: string;
+  docType?: "pdf" | "word" | null;
 }> {
   const { content: withoutOptions, questionCards } = parseOptions(rawText);
-  const { content, imagePrompt } = parseImageRequest(withoutOptions);
+  const { content: withoutImage, imagePrompt } = parseImageRequest(withoutOptions);
+  const { content, docType } = parseDocumentRequest(withoutImage);
 
   if (imagePrompt) {
     const imageUrl = await generateImage(imagePrompt);
-    return { content, questionCards, imageUrl: imageUrl || undefined };
+    return { content, questionCards, imageUrl: imageUrl || undefined, docType };
   }
 
-  return { content, questionCards };
+  return { content, questionCards, docType };
 }
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
@@ -182,7 +202,7 @@ export async function POST(req: NextRequest) {
       const searchResults = await tavilySearch(lastMessage.slice(0, 200));
       const final = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 750,
+        max_tokens: 1200,
         system: SYSTEM_PROMPT,
         messages: [
           ...historyWithAttachments.slice(0, -1),
@@ -196,7 +216,7 @@ export async function POST(req: NextRequest) {
 
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 750,
+      max_tokens: 1200,
       system: SYSTEM_PROMPT,
       messages: historyWithAttachments,
       tools: currentAttachments.length === 0 ? [
@@ -218,7 +238,7 @@ export async function POST(req: NextRequest) {
       const searchResults = await tavilySearch(query);
       const final = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 750,
+        max_tokens: 1200,
         system: SYSTEM_PROMPT,
         messages: [
           ...historyWithAttachments,
