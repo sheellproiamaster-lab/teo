@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
-import { ThemeProvider } from "@/context/ThemeContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -28,9 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className={inter.className}>
-        <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
-        </ThemeProvider>
+        <AuthProvider>{children}</AuthProvider>
         <script dangerouslySetInnerHTML={{
           __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js'))}`
         }} />

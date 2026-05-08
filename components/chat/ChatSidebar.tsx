@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useChat, type Conversation } from "@/context/ChatContext";
 import SubscriptionModal from "./SubscriptionModal";
-import ThemeModal from "./ThemeModal";
 import UsageModal from "./UsageModal";
 import { useRouter } from "next/navigation";
 
@@ -17,8 +16,7 @@ export default function ChatSidebar({ open, onClose }: Props) {
   const { user, logout } = useAuth();
   const { conversations, activeId, setActiveId, newConversation, deleteConversation, renameConversation, toggleFavorite } = useChat();
   const [subOpen, setSubOpen] = useState(false);
-  const [themeOpen, setThemeOpen] = useState(false);
-  const [usageOpen, setUsageOpen] = useState(false);
+    const [usageOpen, setUsageOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [renameId, setRenameId] = useState<string | null>(null);
@@ -142,10 +140,7 @@ export default function ChatSidebar({ open, onClose }: Props) {
           <button onClick={() => setSubOpen(true)} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold text-yellow-600 hover:bg-yellow-50 transition-colors flex items-center gap-2">
             <span>✦</span> Assinatura VIP
           </button>
-          <button onClick={() => setThemeOpen(true)} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-2">
-            <span>🎨</span> Aparência
-          </button>
-          <button onClick={() => setUsageOpen(true)} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-2">
+                    <button onClick={() => setUsageOpen(true)} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-2">
             <span>📊</span> Uso
           </button>
           <div className="h-px bg-slate-100 my-1" />
@@ -157,8 +152,7 @@ export default function ChatSidebar({ open, onClose }: Props) {
       </aside>
 
       <SubscriptionModal open={subOpen} onClose={() => setSubOpen(false)} />
-      <ThemeModal open={themeOpen} onClose={() => setThemeOpen(false)} />
-      <UsageModal open={usageOpen} onClose={() => setUsageOpen(false)} />
+            <UsageModal open={usageOpen} onClose={() => setUsageOpen(false)} />
     </>
   );
 }
