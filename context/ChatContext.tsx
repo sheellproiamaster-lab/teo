@@ -30,6 +30,8 @@ interface ChatContextType {
   activeId: string | null;
   active: Conversation | null;
   isLoading: boolean;
+  isBlocked: boolean;
+  messagesUsed: number;
   setActiveId: (id: string | null) => void;
   newConversation: () => void;
   deleteConversation: (id: string) => void;
@@ -39,17 +41,36 @@ interface ChatContextType {
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
+const DAILY_LIMIT = 15;
+
+function getUsageKey(userId: string) {
+  return `teo_usage_${userId}_${new Date().toDateString()}`;
+}
+
+function getCooldownKey(userId: string) {
+  return `teo_cooldown_${userId}`;
+}
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [messagesUsed, setMessagesUsed] = useState(0);
   const conversationsRef = useRef<Conversation[]>([]);
+  const isPro = user?.plan === "pro";
 
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
 
-  // Carrega conversas do Supabase quando usuário loga
+  // Carrega uso do dia
+  useEffect(() => {
+    if (!user) return;
+    const key = getUsageKey(user.id);
+    const stored = parseInt(localStorage.getItem(key) || "0");
+    setMessagesUsed(stored);
+  }, [user]);
+
+  // Carrega conversas do Supabase
   useEffect(() => {
     if (!user) { setConversations([]); setActiveId(null); return; }
     const load = async () => {
@@ -88,6 +109,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     load();
   }, [user]);
 
+  const isBlocked = !isPro && messagesUsed >= DAILY_LIMIT;
+
   const active = conversations.find(c => c.id === activeId) ?? null;
 
   const newConversation = useCallback(() => {
@@ -117,7 +140,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const sendMessage = useCallback(async (content: string) => {
     if (!user) return;
+
+    // Verifica limite para usuários gratuitos
+    if (!isPro && messagesUsed >= DAILY_LIMIT) {
+      // Inicia cooldown de 6 horas se ainda não iniciou
+      const cooldownKey = getCooldownKey(user.id);
+      const existing = localStorage.getItem(cooldownKey);
+      if (!existing) {
+        const end = Date.now() + 6 * 60 * 60 * 1000;
+        localStorage.setItem(cooldownKey, String(end));
+      }
+      return;
+    }
+
     setIsLoading(true);
+
+    // Incrementa contador de uso
+    if (!isPro) {
+      const key = getUsageKey(user.id);
+      const newCount = messagesUsed + 1;
+      localStorage.setItem(key, String(newCount));
+      setMessagesUsed(newCount);
+    }
 
     const userMsg: Message = {
       id: crypto.randomUUID(), role: "user", content,
@@ -129,12 +173,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const currentConv = conversationsRef.current.find(c => c.id === targetId);
     const apiMessages = [...(currentConv?.messages ?? []), userMsg].map(m => ({ role: m.role, content: m.content }));
 
-    // Cria conversa no Supabase se for nova
     if (isNew || !currentConv) {
       const title = content.slice(0, 45) + (content.length > 45 ? "…" : "");
-      await supabase.from("conversations").insert({
-        id: targetId, user_id: user.id, title,
-      });
+      await supabase.from("conversations").insert({ id: targetId, user_id: user.id, title });
       setConversations(prev => [{
         id: targetId, title, messages: [userMsg],
         createdAt: new Date().toISOString(), isFavorite: false,
@@ -152,7 +193,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       } : c));
     }
 
-    // Salva mensagem do usuário no Supabase
     await supabase.from("messages").insert({
       id: userMsg.id, conversation_id: targetId, user_id: user.id,
       role: "user", content, type: "text",
@@ -174,7 +214,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         questionCards: data.questionCards ?? null,
       };
 
-      // Salva resposta do Teo no Supabase
       await supabase.from("messages").insert({
         id: assistantMsg.id, conversation_id: targetId, user_id: user.id,
         role: "assistant", content: assistantMsg.content, type: "text",
@@ -197,11 +236,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [activeId, user]);
+  }, [activeId, user, isPro, messagesUsed]);
 
   return (
     <ChatContext.Provider value={{
-      conversations, activeId, active, isLoading,
+      conversations, activeId, active, isLoading, isBlocked, messagesUsed,
       setActiveId, newConversation, deleteConversation,
       renameConversation, toggleFavorite, sendMessage,
     }}>
