@@ -23,6 +23,7 @@ export interface Message {
   searched?: boolean;
   questionCards?: QuestionCards | null;
   attachments?: FileAttachment[];
+  imageUrl?: string | null;
 }
 
 export interface Conversation {
@@ -245,6 +246,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         timestamp: new Date().toISOString(),
         searched: data.searched,
         questionCards: data.questionCards ?? null,
+        imageUrl: data.imageUrl ?? null,
       };
 
       await supabase.from("messages").insert({

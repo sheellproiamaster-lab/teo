@@ -21,13 +21,27 @@ async function tavilySearch(query: string): Promise<string> {
   return data.answer || "Nenhum resultado encontrado.";
 }
 
+async function generateImage(prompt: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/generate/image`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt }),
+    });
+    const data = await res.json();
+    return data.url || null;
+  } catch {
+    return null;
+  }
+}
+
 function needsSearch(message: string): boolean {
   const keywords = [
     "pesquisa", "pesquisar", "busca", "buscar", "procura", "procurar",
     "encontra", "encontrar", "clínica", "clinica", "especialista", "terapeuta",
-    "médico", "medico", "hospital", "escola", "preço", "preco", "valor",
+    "médico", "medico", "hospital", "preço", "preco", "valor",
     "onde", "qual o melhor", "me indica", "me indicar", "recomenda",
-    "novidade", "atualidade", "recente", "hoje", "agora", "notícia"
+    "novidade", "atualidade", "recente", "notícia"
   ];
   const lower = message.toLowerCase();
   return keywords.some(k => lower.includes(k));
@@ -45,16 +59,24 @@ function parseOptions(text: string): { content: string; questionCards: { q: stri
   }
 }
 
+function parseImageRequest(text: string): { content: string; imagePrompt: string | null } {
+  const match = text.match(/\[GERAR_IMAGEM:([\s\S]*?)\]/);
+  if (!match) return { content: text.trim(), imagePrompt: null };
+  const imagePrompt = match[1].trim();
+  const content = text.replace(/\[GERAR_IMAGEM:[\s\S]*?\]/, "").trim();
+  return { content, imagePrompt };
+}
+
 interface Attachment {
   name: string;
   type: string;
-  url: string; // base64 data URL
+  url: string;
   isImage: boolean;
 }
 
 async function extractFileText(attachment: Attachment): Promise<string> {
-  // Extrai base64 puro do data URL
   const base64 = attachment.url.split(",")[1];
+  if (!base64) return "";
   const buffer = Buffer.from(base64, "base64");
 
   if (attachment.name.endsWith(".docx") || attachment.name.endsWith(".doc")) {
@@ -81,41 +103,44 @@ async function extractFileText(attachment: Attachment): Promise<string> {
 }
 
 function buildMessageContent(text: string, attachments: Attachment[]): Anthropic.MessageParam["content"] {
-  if (!attachments || attachments.length === 0) {
-    return text || " ";
-  }
+  if (!attachments || attachments.length === 0) return text || " ";
 
   const contentParts: Anthropic.ContentBlockParam[] = [];
 
-  // Adiciona imagens
   for (const att of attachments) {
-    if (att.isImage) {
+    if (att.isImage && att.url.startsWith("data:")) {
       const base64 = att.url.split(",")[1];
       const mediaType = att.type as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-      contentParts.push({
-        type: "image",
-        source: { type: "base64", media_type: mediaType, data: base64 },
-      });
+      contentParts.push({ type: "image", source: { type: "base64", media_type: mediaType, data: base64 } });
     }
   }
 
-  // Adiciona texto principal + conteúdo extraído de documentos
-  let fullText = text || "";
   for (const att of attachments) {
-    if (!att.isImage && att.type === "application/pdf") {
+    if (!att.isImage && att.type === "application/pdf" && att.url.startsWith("data:")) {
       const base64 = att.url.split(",")[1];
-      contentParts.push({
-        type: "document",
-        source: { type: "base64", media_type: "application/pdf", data: base64 },
-      } as Anthropic.ContentBlockParam);
+      contentParts.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } } as Anthropic.ContentBlockParam);
     }
   }
 
-  if (fullText) {
-    contentParts.push({ type: "text", text: fullText });
-  }
+  if (text) contentParts.push({ type: "text", text });
 
   return contentParts.length > 0 ? contentParts : (text || " ");
+}
+
+async function processResponse(rawText: string): Promise<{
+  content: string;
+  questionCards: { q: string; o: string[] } | null;
+  imageUrl?: string;
+}> {
+  const { content: withoutOptions, questionCards } = parseOptions(rawText);
+  const { content, imagePrompt } = parseImageRequest(withoutOptions);
+
+  if (imagePrompt) {
+    const imageUrl = await generateImage(imagePrompt);
+    return { content, questionCards, imageUrl: imageUrl || undefined };
+  }
+
+  return { content, questionCards };
 }
 
 export const maxDuration = 30;
@@ -128,7 +153,6 @@ export async function POST(req: NextRequest) {
     const lastMessage = messages[messages.length - 1]?.content || "";
     const currentAttachments: Attachment[] = attachments || [];
 
-    // Extrai texto de documentos não-imagem e não-PDF
     const extractedTexts: string[] = [];
     for (const att of currentAttachments) {
       if (!att.isImage && att.type !== "application/pdf") {
@@ -137,13 +161,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Monta histórico sem attachments (só texto)
     const history = messages.slice(-10).map((m: { role: string; content: string }) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     }));
 
-    // Monta a última mensagem com attachments
     const lastContent = buildMessageContent(
       lastMessage + (extractedTexts.length > 0 ? "\n\n" + extractedTexts.join("\n\n") : ""),
       currentAttachments
@@ -164,15 +186,12 @@ export async function POST(req: NextRequest) {
         system: SYSTEM_PROMPT,
         messages: [
           ...historyWithAttachments.slice(0, -1),
-          {
-            role: "user",
-            content: `${lastMessage}\n\n[Resultado da pesquisa na internet]: ${searchResults}`,
-          },
+          { role: "user", content: `${lastMessage}\n\n[Resultado da pesquisa na internet]: ${searchResults}` },
         ],
       });
       const rawText = final.content.find((b) => b.type === "text")?.text ?? "Não consegui buscar essa informação.";
-      const { content, questionCards } = parseOptions(rawText);
-      return NextResponse.json({ content, searched: true, query: lastMessage.slice(0, 80), questionCards });
+      const result = await processResponse(rawText);
+      return NextResponse.json({ ...result, searched: true, query: lastMessage.slice(0, 80) });
     }
 
     const response = await anthropic.messages.create({
@@ -186,9 +205,7 @@ export async function POST(req: NextRequest) {
           description: "Pesquisa informações atualizadas na internet.",
           input_schema: {
             type: "object" as const,
-            properties: {
-              query: { type: "string", description: "Termo de busca em português" },
-            },
+            properties: { query: { type: "string", description: "Termo de busca em português" } },
             required: ["query"],
           },
         },
@@ -206,20 +223,17 @@ export async function POST(req: NextRequest) {
         messages: [
           ...historyWithAttachments,
           { role: "assistant", content: response.content },
-          {
-            role: "user",
-            content: [{ type: "tool_result", tool_use_id: toolUse.id, content: searchResults }],
-          },
+          { role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, content: searchResults }] },
         ],
       });
       const rawText = final.content.find((b) => b.type === "text")?.text ?? "Não consegui buscar essa informação.";
-      const { content, questionCards } = parseOptions(rawText);
-      return NextResponse.json({ content, searched: true, query, questionCards });
+      const result = await processResponse(rawText);
+      return NextResponse.json({ ...result, searched: true, query });
     }
 
     const rawText = response.content.find((b) => b.type === "text")?.text ?? "Não entendi. Pode reformular?";
-    const { content, questionCards } = parseOptions(rawText);
-    return NextResponse.json({ content, questionCards });
+    const result = await processResponse(rawText);
+    return NextResponse.json(result);
 
   } catch (err) {
     console.error("[chat/route]", err);

@@ -85,6 +85,15 @@ export default function MessageBubble({ msg }: { msg: Message }) {
     }
   };
 
+  const handleDownloadImage = () => {
+    if (!msg.imageUrl) return;
+    const a = document.createElement("a");
+    a.href = msg.imageUrl;
+    a.download = "teo-imagem.png";
+    a.target = "_blank";
+    a.click();
+  };
+
   return (
     <div className={`flex items-end gap-3 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
       {!isUser && (
@@ -137,6 +146,24 @@ export default function MessageBubble({ msg }: { msg: Message }) {
           </div>
         )}
 
+        {/* Imagem gerada pelo Teo */}
+        {!isUser && msg.imageUrl && (
+          <div className="mt-2 flex flex-col gap-2">
+            <div className="rounded-2xl overflow-hidden border-2 border-blue-200 shadow-lg max-w-xs">
+              <img src={msg.imageUrl} alt="Imagem gerada pelo Teo" className="w-full h-auto object-cover" />
+            </div>
+            <button
+              onClick={handleDownloadImage}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition-all w-fit"
+            >
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Baixar imagem
+            </button>
+          </div>
+        )}
+
         {/* Botões de documento */}
         {!isUser && hasDoc && (
           <div className="flex gap-2 mt-1">
@@ -145,9 +172,7 @@ export default function MessageBubble({ msg }: { msg: Message }) {
               disabled={pdfLoading}
               className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition-all disabled:opacity-60"
             >
-              {pdfLoading ? (
-                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
+              {pdfLoading ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : (
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
                   <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 17v-1h8v1H8zm0-3v-1h8v1H8zm0-3V10h5v1H8z"/>
                 </svg>
@@ -159,9 +184,7 @@ export default function MessageBubble({ msg }: { msg: Message }) {
               disabled={wordLoading}
               className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition-all disabled:opacity-60"
             >
-              {wordLoading ? (
-                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
+              {wordLoading ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : (
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
                   <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM7 15l2-6h1.5l1.5 4.5L14 9h1.5l2 6H16l-1.25-4L13.5 15h-1l-1.25-4L10 15H7z"/>
                 </svg>
