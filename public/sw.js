@@ -1,5 +1,5 @@
-const CACHE = "teo-v1";
-const PRECACHE = ["/", "/auth", "/chat", "/manifest.json", "/teo-avatar.jpeg"];
+const CACHE = "teo-v3";
+const PRECACHE = ["/manifest.json", "/teo-avatar.jpeg"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
@@ -18,17 +18,8 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   if (e.request.url.includes("/api/")) return;
-
-  e.respondWith(
-    caches.match(e.request).then((cached) => {
-      const network = fetch(e.request).then((res) => {
-        if (res.ok) {
-          const clone = res.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, clone));
-        }
-        return res;
-      });
-      return cached || network;
-    })
-  );
+  if (e.request.url.includes("/auth")) return;
+  if (e.request.url.includes("/chat")) return;
+  if (e.request.url.includes("/aprender")) return;
+  if (e.request.url.includes("/parceiros")) return;
 });
