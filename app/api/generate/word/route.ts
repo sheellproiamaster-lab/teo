@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, BorderStyle, ShadingType, AlignmentType, Header, Footer } from "docx";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, BorderStyle, ShadingType, AlignmentType } from "docx";
 
 export const maxDuration = 60;
 
@@ -9,27 +9,33 @@ export async function POST(req: NextRequest) {
     const lines = (content as string).split("\n");
     const children: Paragraph[] = [];
 
+    // Capa
     children.push(
       new Paragraph({
-        children: [new TextRun({ text: "✦ Documento gerado pelo Teo", size: 18, color: "FFFFFF", bold: true })],
+        children: [new TextRun({ text: "Documento Oficial", size: 18, color: "FFFFFF", bold: true, allCaps: true })],
         shading: { type: ShadingType.SOLID, color: "1d4ed8", fill: "1d4ed8" },
-        spacing: { before: 0, after: 0 },
-        indent: { left: 400, right: 400 },
+        spacing: { before: 400, after: 0 },
+        indent: { left: 600, right: 600 },
       }),
       new Paragraph({
-        children: [new TextRun({ text: title || "Documento", size: 36, bold: true, color: "FFFFFF" })],
+        children: [new TextRun({ text: title || "Documento", size: 48, bold: true, color: "FFFFFF" })],
         shading: { type: ShadingType.SOLID, color: "1d4ed8", fill: "1d4ed8" },
-        spacing: { before: 0, after: 0 },
-        indent: { left: 400, right: 400 },
+        spacing: { before: 200, after: 0 },
+        indent: { left: 600, right: 600 },
       }),
       new Paragraph({
         children: [new TextRun({
-          text: `Gerado em ${new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}`,
-          size: 18, color: "FFFFFF", italics: true,
+          text: new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" }),
+          size: 20, color: "FFFFFF", italics: true,
         })],
         shading: { type: ShadingType.SOLID, color: "0891b2", fill: "0891b2" },
-        spacing: { before: 0, after: 400 },
-        indent: { left: 400, right: 400 },
+        spacing: { before: 200, after: 800 },
+        indent: { left: 600, right: 600 },
+        pageBreakBefore: false,
+      }),
+      new Paragraph({
+        children: [new TextRun({ text: "" })],
+        pageBreakBefore: true,
       })
     );
 
@@ -106,27 +112,7 @@ export async function POST(req: NextRequest) {
           levels: [{ level: 0, format: "decimal", text: "%1.", alignment: AlignmentType.START, style: { paragraph: { indent: { left: 720, hanging: 260 } } } }],
         }],
       },
-      sections: [{
-        headers: {
-          default: new Header({
-            children: [new Paragraph({
-              children: [new TextRun({ text: "TEO ✦ Seu parceiro para famílias especiais", size: 16, color: "1d4ed8", bold: true })],
-              alignment: AlignmentType.RIGHT,
-            })],
-          }),
-        },
-        footers: {
-          default: new Footer({
-            children: [new Paragraph({
-              children: [
-                new TextRun({ text: `Teo — Gerado em ${new Date().toLocaleDateString("pt-BR")}`, size: 16, color: "94a3b8" }),
-              ],
-              alignment: AlignmentType.CENTER,
-            })],
-          }),
-        },
-        children,
-      }],
+      sections: [{ children }],
     });
 
     const buffer = await Packer.toBuffer(doc);

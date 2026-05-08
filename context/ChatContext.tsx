@@ -25,6 +25,7 @@ export interface Message {
   attachments?: FileAttachment[];
   imageUrl?: string | null;
   docType?: "pdf" | "word" | null;
+  docContent?: string | null;
 }
 
 export interface Conversation {
@@ -121,6 +122,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             questionCards: m.metadata?.questionCards ?? null,
             imageUrl: m.image_url ?? null,
             docType: m.document_type ?? null,
+            docContent: m.metadata?.docContent ?? null,
             attachments: [],
           })),
         };
@@ -241,6 +243,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         questionCards: data.questionCards ?? null,
         imageUrl: data.imageUrl ?? null,
         docType: data.docType ?? null,
+        docContent: data.docContent ?? null,
       };
 
       // Salva no Supabase com todos os campos extras
@@ -256,6 +259,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         metadata: {
           searched: assistantMsg.searched ?? false,
           questionCards: assistantMsg.questionCards ?? null,
+          docContent: assistantMsg.docContent ?? null,
         },
       });
 

@@ -73,16 +73,21 @@ function parseImageRequest(text: string): { content: string; imagePrompt: string
   return { content, imagePrompt };
 }
 
-function parseDocumentRequest(text: string): { content: string; docType: "pdf" | "word" | null } {
+function parseDocumentRequest(text: string): { content: string; docContent: string; docType: "pdf" | "word" | null } {
   const pdfMatch = text.match(/\[GERAR_DOCUMENTO:pdf\]/i);
   const wordMatch = text.match(/\[GERAR_DOCUMENTO:word\]/i);
+  const docMatch = text.match(/\[INICIO_DOCUMENTO\]([\s\S]*?)\[FIM_DOCUMENTO\]/);
+
+  const docContent = docMatch ? docMatch[1].trim() : "";
   const content = text
     .replace(/\[GERAR_DOCUMENTO:pdf\]/gi, "")
     .replace(/\[GERAR_DOCUMENTO:word\]/gi, "")
+    .replace(/\[INICIO_DOCUMENTO\][\s\S]*?\[FIM_DOCUMENTO\]/g, "")
     .trim();
-  if (pdfMatch) return { content, docType: "pdf" };
-  if (wordMatch) return { content, docType: "word" };
-  return { content, docType: null };
+
+  if (pdfMatch) return { content, docContent, docType: "pdf" };
+  if (wordMatch) return { content, docContent, docType: "word" };
+  return { content, docContent: "", docType: null };
 }
 
 interface Attachment {
@@ -147,20 +152,21 @@ function buildMessageContent(text: string, attachments: Attachment[]): Anthropic
 
 async function processResponse(rawText: string): Promise<{
   content: string;
+  docContent: string;
   questionCards: { q: string; o: string[] } | null;
   imageUrl?: string;
   docType?: "pdf" | "word" | null;
 }> {
   const { content: withoutOptions, questionCards } = parseOptions(rawText);
   const { content: withoutImage, imagePrompt } = parseImageRequest(withoutOptions);
-  const { content, docType } = parseDocumentRequest(withoutImage);
+  const { content, docContent, docType } = parseDocumentRequest(withoutImage);
 
   if (imagePrompt) {
     const imageUrl = await generateImage(imagePrompt);
-    return { content, questionCards, imageUrl: imageUrl || undefined, docType };
+    return { content, docContent, questionCards, imageUrl: imageUrl || undefined, docType };
   }
 
-  return { content, questionCards, docType };
+  return { content, docContent, questionCards, docType };
 }
 
 export const maxDuration = 60;
@@ -202,7 +208,7 @@ export async function POST(req: NextRequest) {
       const searchResults = await tavilySearch(lastMessage.slice(0, 200));
       const final = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 1200,
+        max_tokens: 8000,
         system: SYSTEM_PROMPT,
         messages: [
           ...historyWithAttachments.slice(0, -1),
@@ -216,7 +222,7 @@ export async function POST(req: NextRequest) {
 
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1200,
+      max_tokens: 8000,
       system: SYSTEM_PROMPT,
       messages: historyWithAttachments,
       tools: currentAttachments.length === 0 ? [
@@ -238,7 +244,7 @@ export async function POST(req: NextRequest) {
       const searchResults = await tavilySearch(query);
       const final = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 1200,
+        max_tokens: 8000,
         system: SYSTEM_PROMPT,
         messages: [
           ...historyWithAttachments,
