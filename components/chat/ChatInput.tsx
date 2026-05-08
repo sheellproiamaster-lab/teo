@@ -68,7 +68,7 @@ export default function ChatInput({ isWelcome, inputRef }: { isWelcome?: boolean
           </div>
         )}
 
-        <div className={`flex flex-col bg-slate-50 border rounded-2xl px-3 py-2 transition-all ${
+        <div className={`relative flex flex-col bg-slate-50 border rounded-2xl px-3 py-2 transition-all ${
           isBlocked
             ? "border-red-200 opacity-60 pointer-events-none"
             : "border-slate-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100"
