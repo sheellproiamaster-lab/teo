@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { useChat } from "@/context/ChatContext";
+import { useChat, ChatProvider } from "@/context/ChatContext";
 import Image from "next/image";
 
 const LEARN_PROMPTS = [
@@ -15,7 +15,7 @@ const LEARN_PROMPTS = [
   "Como aplicar técnicas de comunicação alternativa?",
 ];
 
-export default function AprenderPage() {
+function AprenderContent() {
   const router = useRouter();
   const { user } = useAuth();
   const { sendMessage, active, newConversation, isLoading, isBlocked, messagesUsed } = useChat();
@@ -41,7 +41,6 @@ export default function AprenderPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 via-white to-cyan-50">
-      {/* Header */}
       <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-500 px-4 py-4 text-white flex items-center gap-3 shadow-lg">
         <button onClick={() => router.back()} className="flex items-center justify-center w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 transition-colors">
           <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -66,7 +65,6 @@ export default function AprenderPage() {
         </span>
       </div>
 
-      {/* Mensagens */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center gap-6 py-8">
@@ -75,14 +73,9 @@ export default function AprenderPage() {
               <h2 className="text-blue-900 font-black text-xl mb-2">O que você quer aprender?</h2>
               <p className="text-slate-500 text-sm">Escolha um tema ou digite sua dúvida</p>
             </div>
-
             <div className="w-full max-w-lg flex flex-col gap-2">
               {LEARN_PROMPTS.map((prompt, i) => (
-                <button
-                  key={i}
-                  onClick={() => submit(prompt)}
-                  className="w-full text-left bg-white border border-blue-100 hover:border-blue-300 hover:bg-blue-50 rounded-2xl px-4 py-3 text-sm text-blue-800 font-medium transition-all shadow-sm flex items-center gap-3"
-                >
+                <button key={i} onClick={() => submit(prompt)} className="w-full text-left bg-white border border-blue-100 hover:border-blue-300 hover:bg-blue-50 rounded-2xl px-4 py-3 text-sm text-blue-800 font-medium transition-all shadow-sm flex items-center gap-3">
                   <span className="text-blue-400 flex-shrink-0">→</span>
                   {prompt}
                 </button>
@@ -104,16 +97,11 @@ export default function AprenderPage() {
                     <Image src="/teo-avatar.jpeg" alt="Teo" fill className="object-cover" />
                   </div>
                 )}
-                <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                  msg.role === "user"
-                    ? "bg-gradient-to-br from-blue-600 to-blue-500 text-white rounded-br-sm shadow-md"
-                    : "bg-white border border-blue-100 text-slate-700 rounded-bl-sm shadow-sm"
-                }`}>
+                <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${msg.role === "user" ? "bg-gradient-to-br from-blue-600 to-blue-500 text-white rounded-br-sm shadow-md" : "bg-white border border-blue-100 text-slate-700 rounded-bl-sm shadow-sm"}`}>
                   {msg.content.replace("[Modo Aprenda com o Teo] ", "")}
                 </div>
               </div>
             ))}
-
             {isLoading && (
               <div className="flex items-end gap-3">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center flex-shrink-0">
@@ -136,7 +124,6 @@ export default function AprenderPage() {
         )}
       </div>
 
-      {/* Input */}
       <div className="border-t border-blue-100 bg-white px-4 py-3">
         <div className="max-w-3xl mx-auto">
           {isBlocked && (
@@ -166,9 +153,7 @@ export default function AprenderPage() {
               disabled={!text.trim() || isLoading || isBlocked}
               className="flex-shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white flex items-center justify-center transition-all mb-0.5 disabled:opacity-40 shadow-sm"
             >
-              {isLoading ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
+              {isLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : (
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
                   <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
                 </svg>
@@ -181,5 +166,13 @@ export default function AprenderPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AprenderPage() {
+  return (
+    <ChatProvider>
+      <AprenderContent />
+    </ChatProvider>
   );
 }
