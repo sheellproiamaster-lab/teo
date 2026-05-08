@@ -4,11 +4,33 @@ import Image from "next/image";
 import type { Message } from "@/context/ChatContext";
 import { useChat } from "@/context/ChatContext";
 
+function detectDocument(content: string): { hasDoc: boolean; type: "pdf" | "word" | null; title: string } {
+  const pdfMatch = content.match(/\[GERAR_DOCUMENTO:pdf\]/i);
+  const wordMatch = content.match(/\[GERAR_DOCUMENTO:word\]/i);
+  const titleMatch = content.match(/^#+ (.+)$/m);
+  const title = titleMatch ? titleMatch[1] : "Documento Teo";
+  if (pdfMatch) return { hasDoc: true, type: "pdf", title };
+  if (wordMatch) return { hasDoc: true, type: "word", title };
+  return { hasDoc: false, type: null, title };
+}
+
+function cleanContent(content: string): string {
+  return content
+    .replace(/\[GERAR_DOCUMENTO:pdf\]/gi, "")
+    .replace(/\[GERAR_DOCUMENTO:word\]/gi, "")
+    .trim();
+}
+
 export default function MessageBubble({ msg }: { msg: Message }) {
   const isUser = msg.role === "user";
   const { sendMessage } = useChat();
   const [showOtro, setShowOtro] = useState(false);
   const [otroText, setOtroText] = useState("");
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [wordLoading, setWordLoading] = useState(false);
+
+  const { hasDoc, title } = detectDocument(msg.content);
+  const cleanedContent = cleanContent(msg.content);
 
   const handleOption = (option: string) => sendMessage(option);
 
@@ -19,9 +41,52 @@ export default function MessageBubble({ msg }: { msg: Message }) {
     setOtroText("");
   };
 
+  const handleDownloadPDF = async () => {
+    setPdfLoading(true);
+    try {
+      const res = await fetch("/api/generate/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: cleanedContent, title }),
+      });
+      const html = await res.text();
+      const win = window.open("", "_blank");
+      if (win) {
+        win.document.write(html);
+        win.document.close();
+        setTimeout(() => win.print(), 800);
+      }
+    } catch {
+      alert("Erro ao gerar PDF.");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  const handleDownloadWord = async () => {
+    setWordLoading(true);
+    try {
+      const res = await fetch("/api/generate/word", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: cleanedContent, title }),
+      });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Erro ao gerar Word.");
+    } finally {
+      setWordLoading(false);
+    }
+  };
+
   return (
     <div className={`flex items-end gap-3 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
-      {/* Avatar Teo */}
       {!isUser && (
         <div className="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden border-2 border-blue-200 bg-blue-100 relative">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
@@ -35,7 +100,6 @@ export default function MessageBubble({ msg }: { msg: Message }) {
       )}
 
       <div className={`max-w-[80%] md:max-w-[65%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-1`}>
-        {/* Badge pesquisa */}
         {msg.searched && (
           <span className="text-xs text-blue-500 bg-blue-50 border border-blue-100 rounded-full px-2.5 py-0.5 w-fit">
             🔍 Pesquisado na internet
@@ -62,14 +126,48 @@ export default function MessageBubble({ msg }: { msg: Message }) {
           </div>
         )}
 
-        {/* Balão de mensagem */}
-        {(msg.content || !isUser) && (
+        {/* Balão */}
+        {(cleanedContent || !isUser) && (
           <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
             isUser
               ? "bg-gradient-to-br from-blue-600 to-blue-500 text-white rounded-br-sm shadow-md"
               : "bg-white border border-blue-100 text-slate-700 rounded-bl-sm shadow-sm"
           }`}>
-            {msg.content}
+            {cleanedContent}
+          </div>
+        )}
+
+        {/* Botões de documento */}
+        {!isUser && hasDoc && (
+          <div className="flex gap-2 mt-1">
+            <button
+              onClick={handleDownloadPDF}
+              disabled={pdfLoading}
+              className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition-all disabled:opacity-60"
+            >
+              {pdfLoading ? (
+                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 17v-1h8v1H8zm0-3v-1h8v1H8zm0-3V10h5v1H8z"/>
+                </svg>
+              )}
+              Baixar PDF
+            </button>
+            <button
+              onClick={handleDownloadWord}
+              disabled={wordLoading}
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition-all disabled:opacity-60"
+            >
+              {wordLoading ? (
+                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM7 15l2-6h1.5l1.5 4.5L14 9h1.5l2 6H16l-1.25-4L13.5 15h-1l-1.25-4L10 15H7z"/>
+                </svg>
+              )}
+              Baixar Word
+            </button>
           </div>
         )}
 
@@ -87,7 +185,6 @@ export default function MessageBubble({ msg }: { msg: Message }) {
                   {option}
                 </button>
               ))}
-
               {!showOtro ? (
                 <button
                   onClick={() => setShowOtro(true)}
