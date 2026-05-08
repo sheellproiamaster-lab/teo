@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Image from "next/image";
 import type { Message } from "@/context/ChatContext";
 import { useChat } from "@/context/ChatContext";
@@ -28,6 +28,8 @@ export default function MessageBubble({ msg }: { msg: Message }) {
   const [otroText, setOtroText] = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
   const [wordLoading, setWordLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const { hasDoc, title } = detectDocument(msg.content);
   const cleanedContent = cleanContent(msg.content);
@@ -85,6 +87,31 @@ export default function MessageBubble({ msg }: { msg: Message }) {
     }
   };
 
+  const handleSpeak = async () => {
+    if (isPlaying) {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+      return;
+    }
+    try {
+      setIsPlaying(true);
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: cleanedContent }),
+      });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { setIsPlaying(false); URL.revokeObjectURL(url); };
+      audio.onerror = () => { setIsPlaying(false); URL.revokeObjectURL(url); };
+      await audio.play();
+    } catch {
+      setIsPlaying(false);
+    }
+  };
+
   const handleDownloadImage = () => {
     if (!msg.imageUrl) return;
     const a = document.createElement("a");
@@ -109,13 +136,42 @@ export default function MessageBubble({ msg }: { msg: Message }) {
       )}
 
       <div className={`max-w-[80%] md:max-w-[65%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-1`}>
+        {!isUser && (
+          <button
+            onClick={handleSpeak}
+            title={isPlaying ? "Parar" : "Ouvir resposta"}
+            className={`self-start flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full transition-all w-fit ${
+              isPlaying
+                ? "bg-blue-600 text-white"
+                : "bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100"
+            }`}
+          >
+            {isPlaying ? (
+              <>
+                <div className="flex gap-0.5 items-center h-3">
+                  {[0, 0.15, 0.3].map(d => (
+                    <div key={d} className="w-0.5 h-3 bg-white rounded-full animate-bounce" style={{ animationDelay: `${d}s` }} />
+                  ))}
+                </div>
+                Parar
+              </>
+            ) : (
+              <>
+                <svg viewBox="0 0 24 24" className="w-3 h-3" fill="currentColor">
+                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+                </svg>
+                Ouvir
+              </>
+            )}
+          </button>
+        )}
+
         {msg.searched && (
           <span className="text-xs text-blue-500 bg-blue-50 border border-blue-100 rounded-full px-2.5 py-0.5 w-fit">
             🔍 Pesquisado na internet
           </span>
         )}
 
-        {/* Anexos do usuário */}
         {isUser && msg.attachments && msg.attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-1 justify-end">
             {msg.attachments.map((f, i) => (
@@ -135,7 +191,6 @@ export default function MessageBubble({ msg }: { msg: Message }) {
           </div>
         )}
 
-        {/* Balão */}
         {(cleanedContent || !isUser) && (
           <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
             isUser
@@ -146,7 +201,6 @@ export default function MessageBubble({ msg }: { msg: Message }) {
           </div>
         )}
 
-        {/* Imagem gerada pelo Teo */}
         {!isUser && msg.imageUrl && (
           <div className="mt-2 flex flex-col gap-2">
             <div className="rounded-2xl overflow-hidden border-2 border-blue-200 shadow-lg max-w-xs">
@@ -164,7 +218,6 @@ export default function MessageBubble({ msg }: { msg: Message }) {
           </div>
         )}
 
-        {/* Botões de documento */}
         {!isUser && hasDoc && (
           <div className="flex gap-2 mt-1">
             <button
@@ -194,7 +247,6 @@ export default function MessageBubble({ msg }: { msg: Message }) {
           </div>
         )}
 
-        {/* Cards de opções */}
         {!isUser && msg.questionCards && (
           <div className="mt-2 w-full max-w-xs">
             <p className="text-xs font-semibold text-blue-600 mb-2">{msg.questionCards.q}</p>
