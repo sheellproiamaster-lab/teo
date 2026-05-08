@@ -11,9 +11,32 @@ export default function ChatInput({ isWelcome, inputRef }: { isWelcome?: boolean
   const [text, setText] = useState("");
   const [files, setFiles] = useState<FileAttachment[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
-  const textareaRef = inputRef ?? useRef<HTMLTextAreaElement>(null);
+  const localRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = inputRef ?? localRef;
+  const [isRecording, setIsRecording] = useState(false);
   const isPro = user?.plan === "pro";
   const DAILY_LIMIT = 15;
+
+  const handleMic = async () => {
+    if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
+      alert("Seu navegador não suporta reconhecimento de voz.");
+      return;
+    }
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SR();
+    recognition.lang = "pt-BR";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    setIsRecording(true);
+    recognition.start();
+    recognition.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      setText(transcript);
+      setIsRecording(false);
+    };
+    recognition.onerror = () => setIsRecording(false);
+    recognition.onend = () => setIsRecording(false);
+  };
 
   const handleFiles = async (selected: FileList | null) => {
     if (!selected) return;
@@ -140,6 +163,16 @@ export default function ChatInput({ isWelcome, inputRef }: { isWelcome?: boolean
                 t.style.height = Math.min(t.scrollHeight, 128) + "px";
               }}
             />
+
+            <button
+              onClick={handleMic}
+              disabled={isLoading || isBlocked || isRecording}
+              className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all mb-0.5 ${isRecording ? "bg-red-500 text-white animate-pulse" : "bg-blue-50 hover:bg-blue-100 text-blue-500"}`}
+            >
+              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/>
+              </svg>
+            </button>
 
             <button
               onClick={submit}
