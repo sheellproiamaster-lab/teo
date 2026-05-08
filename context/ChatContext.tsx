@@ -1,5 +1,7 @@
 "use client";
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 
 export interface QuestionCards {
   q: string;
@@ -38,9 +40,8 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | null>(null);
 
-const STORAGE_KEY = "teo_conversations";
-
 export function ChatProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,12 +49,44 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
 
+  // Carrega conversas do Supabase quando usuário loga
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setConversations(JSON.parse(stored));
-    } catch {}
-  }, []);
+    if (!user) { setConversations([]); setActiveId(null); return; }
+    const load = async () => {
+      const { data: convs } = await supabase
+        .from("conversations")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false });
+
+      if (!convs) return;
+
+      const full: Conversation[] = await Promise.all(convs.map(async c => {
+        const { data: msgs } = await supabase
+          .from("messages")
+          .select("*")
+          .eq("conversation_id", c.id)
+          .order("created_at", { ascending: true });
+
+        return {
+          id: c.id,
+          title: c.title,
+          createdAt: c.created_at,
+          isFavorite: false,
+          messages: (msgs || []).map(m => ({
+            id: m.id,
+            role: m.role as "user" | "assistant",
+            content: m.content,
+            timestamp: m.created_at,
+            questionCards: null,
+          })),
+        };
+      }));
+
+      setConversations(full);
+    };
+    load();
+  }, [user]);
 
   const active = conversations.find(c => c.id === activeId) ?? null;
 
@@ -63,40 +96,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       id, title: "Nova conversa", messages: [],
       createdAt: new Date().toISOString(), isFavorite: false,
     };
-    setConversations(prev => {
-      const updated = [conv, ...prev];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      return updated;
-    });
+    setConversations(prev => [conv, ...prev]);
     setActiveId(id);
   }, []);
 
-  const deleteConversation = useCallback((id: string) => {
-    setConversations(prev => {
-      const updated = prev.filter(c => c.id !== id);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      return updated;
-    });
+  const deleteConversation = useCallback(async (id: string) => {
+    await supabase.from("conversations").delete().eq("id", id);
+    setConversations(prev => prev.filter(c => c.id !== id));
     setActiveId(prev => prev === id ? null : prev);
   }, []);
 
-  const renameConversation = useCallback((id: string, title: string) => {
-    setConversations(prev => {
-      const updated = prev.map(c => c.id === id ? { ...c, title } : c);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      return updated;
-    });
+  const renameConversation = useCallback(async (id: string, title: string) => {
+    await supabase.from("conversations").update({ title }).eq("id", id);
+    setConversations(prev => prev.map(c => c.id === id ? { ...c, title } : c));
   }, []);
 
   const toggleFavorite = useCallback((id: string) => {
-    setConversations(prev => {
-      const updated = prev.map(c => c.id === id ? { ...c, isFavorite: !c.isFavorite } : c);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      return updated;
-    });
+    setConversations(prev => prev.map(c => c.id === id ? { ...c, isFavorite: !c.isFavorite } : c));
   }, []);
 
   const sendMessage = useCallback(async (content: string) => {
+    if (!user) return;
     setIsLoading(true);
 
     const userMsg: Message = {
@@ -104,42 +124,39 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       timestamp: new Date().toISOString(),
     };
 
-    // Always use activeId if available; only generate new id when starting fresh
     const targetId: string = activeId ?? crypto.randomUUID();
     const isNew = !activeId;
-
-    // Read latest conversations synchronously from ref to build apiMessages
     const currentConv = conversationsRef.current.find(c => c.id === targetId);
     const apiMessages = [...(currentConv?.messages ?? []), userMsg].map(m => ({ role: m.role, content: m.content }));
 
-    setConversations(prev => {
-      const existing = prev.find(c => c.id === targetId);
-      if (existing) {
-        const autoTitle = existing.messages.length === 0 && existing.title === "Nova conversa"
-          ? content.slice(0, 45) + (content.length > 45 ? "…" : "")
-          : existing.title;
-        const updated = prev.map(c => c.id === targetId ? {
-          ...c,
-          messages: [...c.messages, userMsg],
-          title: autoTitle,
-        } : c);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-        return updated;
-      } else {
-        const newConv: Conversation = {
-          id: targetId,
-          title: content.slice(0, 45) + (content.length > 45 ? "…" : ""),
-          messages: [userMsg],
-          createdAt: new Date().toISOString(),
-          isFavorite: false,
-        };
-        const updated = [newConv, ...prev];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-        return updated;
+    // Cria conversa no Supabase se for nova
+    if (isNew || !currentConv) {
+      const title = content.slice(0, 45) + (content.length > 45 ? "…" : "");
+      await supabase.from("conversations").insert({
+        id: targetId, user_id: user.id, title,
+      });
+      setConversations(prev => [{
+        id: targetId, title, messages: [userMsg],
+        createdAt: new Date().toISOString(), isFavorite: false,
+      }, ...prev]);
+      if (isNew) setActiveId(targetId);
+    } else {
+      const autoTitle = currentConv.messages.length === 0 && currentConv.title === "Nova conversa"
+        ? content.slice(0, 45) + (content.length > 45 ? "…" : "")
+        : currentConv.title;
+      if (autoTitle !== currentConv.title) {
+        await supabase.from("conversations").update({ title: autoTitle }).eq("id", targetId);
       }
-    });
+      setConversations(prev => prev.map(c => c.id === targetId ? {
+        ...c, title: autoTitle, messages: [...c.messages, userMsg],
+      } : c));
+    }
 
-    if (isNew) setActiveId(targetId);
+    // Salva mensagem do usuário no Supabase
+    await supabase.from("messages").insert({
+      id: userMsg.id, conversation_id: targetId, user_id: user.id,
+      role: "user", content, type: "text",
+    });
 
     try {
       const res = await fetch("/api/chat", {
@@ -157,26 +174,30 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         questionCards: data.questionCards ?? null,
       };
 
-      setConversations(prev => {
-        const updated = prev.map(c => c.id === targetId ? { ...c, messages: [...c.messages, assistantMsg] } : c);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-        return updated;
+      // Salva resposta do Teo no Supabase
+      await supabase.from("messages").insert({
+        id: assistantMsg.id, conversation_id: targetId, user_id: user.id,
+        role: "assistant", content: assistantMsg.content, type: "text",
       });
+
+      await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", targetId);
+
+      setConversations(prev => prev.map(c => c.id === targetId ? {
+        ...c, messages: [...c.messages, assistantMsg],
+      } : c));
     } catch {
       const errMsg: Message = {
         id: crypto.randomUUID(), role: "assistant",
         content: "Erro de conexão. Verifique sua internet e tente novamente.",
         timestamp: new Date().toISOString(),
       };
-      setConversations(prev => {
-        const updated = prev.map(c => c.id === targetId ? { ...c, messages: [...c.messages, errMsg] } : c);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-        return updated;
-      });
+      setConversations(prev => prev.map(c => c.id === targetId ? {
+        ...c, messages: [...c.messages, errMsg],
+      } : c));
     } finally {
       setIsLoading(false);
     }
-  }, [activeId]);
+  }, [activeId, user]);
 
   return (
     <ChatContext.Provider value={{
