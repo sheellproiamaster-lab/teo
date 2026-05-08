@@ -1,8 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import RotatingCards from "@/components/chat/RotatingCards";
 
@@ -15,6 +16,99 @@ const letterEnter = {
   O: { hidden: { x: 120, opacity: 0, scale: 0.5 }, visible: { x: 0, opacity: 1, scale: 1 } },
 };
 const delays = { T: 0.2, E: 0.5, O: 0.8 };
+
+const PIECES = [
+  { color: "#3B82F6", x: 0,   y: 0,   delay: 0.0 },
+  { color: "#06B6D4", x: 110, y: 0,   delay: 0.3 },
+  { color: "#F59E0B", x: 55,  y: 95,  delay: 0.6 },
+  { color: "#10B981", x: 165, y: 95,  delay: 0.9 },
+];
+
+const PHRASES = [
+  "Cada peça importa. Cada família merece apoio.",
+  "Você não está sozinho nessa jornada.",
+];
+
+function PuzzleAnimation() {
+  const [phase, setPhase] = useState(0);
+  const [phraseIndex, setPhraseIndex] = useState(0);
+  const [showPhrase, setShowPhrase] = useState(false);
+
+  useEffect(() => {
+    const loop = () => {
+      setPhase(0);
+      setShowPhrase(false);
+
+      // Peças aparecem
+      const t1 = setTimeout(() => setPhase(1), 200);
+      // Primeira frase aparece
+      const t2 = setTimeout(() => { setPhraseIndex(0); setShowPhrase(true); }, 1400);
+      // Primeira frase some
+      const t3 = setTimeout(() => setShowPhrase(false), 3500);
+      // Segunda frase aparece
+      const t4 = setTimeout(() => { setPhraseIndex(1); setShowPhrase(true); }, 4200);
+      // Segunda frase some
+      const t5 = setTimeout(() => setShowPhrase(false), 6500);
+      // Peças somem
+      const t6 = setTimeout(() => setPhase(0), 7000);
+
+      return [t1, t2, t3, t4, t5, t6];
+    };
+
+    const timers = loop();
+    const interval = setInterval(() => {
+      timers.forEach(clearTimeout);
+      const newTimers = loop();
+      timers.splice(0, timers.length, ...newTimers);
+    }, 8000);
+
+    return () => {
+      timers.forEach(clearTimeout);
+      clearInterval(interval);
+    };
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center gap-6 w-full">
+      {/* Puzzle */}
+      <div className="relative" style={{ width: 265, height: 195 }}>
+        {PIECES.map((p, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, scale: 0.3, rotate: -30 }}
+            animate={phase === 1
+              ? { opacity: 1, scale: 1, rotate: 0 }
+              : { opacity: 0, scale: 0.3, rotate: -30 }}
+            transition={{ delay: p.delay, duration: 0.5, type: "spring", stiffness: 80 }}
+            style={{ position: "absolute", left: p.x, top: p.y, width: 100, height: 100 }}
+          >
+            <svg viewBox="-15 -15 130 130" width="100%" height="100%">
+              <path d={PUZZLE_PATH} fill={p.color} opacity={0.9} />
+            </svg>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Frases */}
+      <div className="h-12 flex items-center justify-center w-full px-4">
+        <AnimatePresence mode="wait">
+          {showPhrase && (
+            <motion.p
+              key={phraseIndex}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.5 }}
+              className="text-center text-slate-600 text-sm font-medium leading-snug"
+            >
+              {PHRASES[phraseIndex]}
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
 
 export default function AuthPage() {
   const router = useRouter();
@@ -39,10 +133,10 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
 
-      {/* LEFT — Blue side */}
+      {/* LEFT */}
       <div className="relative md:w-1/2 bg-gradient-to-br from-blue-700 via-blue-600 to-cyan-500 flex flex-col items-center justify-center p-8 md:p-12 overflow-hidden min-h-[50vh] md:min-h-screen">
         {[15, -20, 40, -35].map((rot, i) => (
-          <div key={i} className={`absolute pointer-events-none float-${["a","b","c","d"][i]}`}
+          <div key={i} className={`absolute pointer-events-none`}
             style={{ left: `${[8,82,5,85][i]}%`, top: `${[10,8,75,70][i]}%`, width: 55, height: 55, opacity: 0.2 }}>
             <svg viewBox="-15 -15 130 130" width="100%" height="100%">
               <path d={PUZZLE_PATH} fill="white" style={{ transform: `rotate(${rot}deg)`, transformOrigin: "center" }} />
@@ -115,7 +209,7 @@ export default function AuthPage() {
         </div>
       </div>
 
-      {/* RIGHT — Login */}
+      {/* RIGHT */}
       <div className="md:w-1/2 flex flex-col items-center justify-center p-8 md:p-12 bg-white">
         <div className="w-full max-w-md">
 
@@ -123,7 +217,7 @@ export default function AuthPage() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="mb-10"
+            className="mb-8"
           >
             <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-xs font-semibold px-4 py-1.5 rounded-full mb-4 shadow">
               ✦ Tenha a melhor experiência a partir de agora
@@ -139,11 +233,22 @@ export default function AuthPage() {
             </p>
           </motion.div>
 
+          {/* Animação quebra-cabeça */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.5 }}
-            className="flex flex-col gap-4"
+            className="mb-8"
+          >
+            <PuzzleAnimation />
+          </motion.div>
+
+          {/* Botão Google */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5, duration: 0.5 }}
+            className="flex flex-col gap-3"
           >
             <button
               onClick={handleGoogle}
@@ -159,8 +264,16 @@ export default function AuthPage() {
               {googleLoading ? "Redirecionando..." : "Entrar com Google"}
             </button>
 
-            <p className="text-center text-xs text-slate-400 mt-2">
-              Ao entrar, você concorda com nossos termos de uso e política de privacidade.
+            <p className="text-center text-xs text-slate-400">
+              Ao entrar, você concorda com nossos{" "}
+              <Link href="/termos" target="_blank" className="text-blue-600 hover:underline font-medium">
+                Termos de Uso
+              </Link>
+              {" "}e{" "}
+              <Link href="/privacidade" target="_blank" className="text-blue-600 hover:underline font-medium">
+                Política de Privacidade
+              </Link>
+              .
             </p>
           </motion.div>
         </div>
