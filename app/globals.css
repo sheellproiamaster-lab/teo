@@ -11,15 +11,15 @@ body {
 
 /* TEMA ESCURO */
 html.dark body {
-  background-color: #0f1117;
-  color: #e2e8f0;
+  background-color: #1e2433;
+  color: #f1f5f9;
 }
 html.dark ::-webkit-scrollbar-track { background: #1e2130; }
 html.dark ::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 4px; }
 
 /* Sidebar escura */
 html.dark aside {
-  background-color: #1a1f2e !important;
+  background-color: #252d3d !important;
   border-color: #2d3748 !important;
 }
 html.dark aside p, html.dark aside span { color: #e2e8f0; }
@@ -36,15 +36,15 @@ html.dark aside .bg-slate-100 { background-color: #2d3748 !important; }
 html.dark aside .h-px { background-color: #2d3748 !important; }
 
 /* Chat area escura */
-html.dark .bg-slate-50 { background-color: #0f1117 !important; }
-html.dark .bg-white { background-color: #1a1f2e !important; }
+html.dark .bg-slate-50 { background-color: #1e2433 !important; }
+html.dark .bg-white { background-color: #252d3d !important; }
 html.dark .border-blue-100 { border-color: #2d3748 !important; }
-html.dark .text-slate-700 { color: #e2e8f0 !important; }
-html.dark .text-slate-600 { color: #cbd5e1 !important; }
-html.dark .text-slate-500 { color: #94a3b8 !important; }
-html.dark .text-slate-400 { color: #64748b !important; }
-html.dark .text-blue-900 { color: #93c5fd !important; }
-html.dark .text-blue-800 { color: #93c5fd !important; }
+html.dark .text-slate-700 { color: #f1f5f9 !important; }
+html.dark .text-slate-600 { color: #e2e8f0 !important; }
+html.dark .text-slate-500 { color: #cbd5e1 !important; }
+html.dark .text-slate-400 { color: #94a3b8 !important; }
+html.dark .text-blue-900 { color: #bfdbfe !important; }
+html.dark .text-blue-800 { color: #bfdbfe !important; }
 html.dark .border-blue-100 { border-color: #2d3748 !important; }
 html.dark .border-slate-200 { border-color: #2d3748 !important; }
 
