@@ -11,7 +11,7 @@ export interface QuestionCards {
 export interface FileAttachment {
   name: string;
   type: string;
-  url: string; // base64 ou object URL para preview
+  url: string;
   isImage: boolean;
 }
 
@@ -57,6 +57,20 @@ function getUsageKey(userId: string) {
 
 function getCooldownKey(userId: string) {
   return `teo_cooldown_${userId}`;
+}
+
+async function uploadFileToStorage(file: FileAttachment): Promise<string> {
+  try {
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file }),
+    });
+    const data = await res.json();
+    return data.url || file.url;
+  } catch {
+    return file.url;
+  }
 }
 
 export function ChatProvider({ children }: { children: ReactNode }) {
@@ -166,10 +180,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setMessagesUsed(newCount);
     }
 
+    // Upload arquivos para Supabase Storage via API
+    let uploadedAttachments = attachments || [];
+    if (attachments && attachments.length > 0) {
+      uploadedAttachments = await Promise.all(
+        attachments.map(async att => {
+          const publicUrl = await uploadFileToStorage(att);
+          return { ...att, url: publicUrl };
+        })
+      );
+    }
+
     const userMsg: Message = {
       id: crypto.randomUUID(), role: "user", content,
       timestamp: new Date().toISOString(),
-      attachments: attachments || [],
+      attachments: uploadedAttachments,
     };
 
     const targetId: string = activeId ?? crypto.randomUUID();
