@@ -10,8 +10,8 @@ const LEARN_PROMPTS = [
   "Me ensine a lidar melhor com situações difíceis no trabalho",
   "Quero aprender algo estratégico para aplicar no meu trabalho",
   "Como posso liderar melhor minha equipe e ter mais resultados?",
-  "Quero entender melhor sobre TDAH e estratégias práticas",
-  "Me ajude a entender os direitos das pessoas com deficiência",
+  "Quero entender melhor sobre TEA, TDAH e estratégias práticas",
+  "Me ajude a pesquisar o que os melhores especialistas indicam para o desenvolvimento",
   "Como aplicar técnicas de comunicação alternativa?",
 ];
 
@@ -63,7 +63,9 @@ function AprenderContent() {
         {messages.length === 0 ? (
           <div className="flex flex-col items-center gap-6 py-8">
             <div className="text-center">
-              <div className="text-4xl mb-3">🧠</div>
+              <div className="relative w-20 h-20 rounded-full overflow-hidden border-4 border-blue-200 shadow-xl mx-auto mb-3">
+                <Image src="/teo-avatar.jpeg" alt="Teo" fill className="object-cover" />
+              </div>
               <h2 className="text-blue-900 font-black text-xl mb-2">O que você quer aprender?</h2>
               <p className="text-slate-500 text-sm">Escolha um tema ou digite sua dúvida</p>
             </div>
