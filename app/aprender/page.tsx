@@ -48,12 +48,6 @@ function AprenderContent() {
           </svg>
         </button>
         <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-white/40 relative flex-shrink-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
-            <svg viewBox="0 0 100 100" className="w-5 h-5 text-white/70">
-              <circle cx="50" cy="34" r="19" fill="currentColor" />
-              <path d="M 12 88 Q 12 62 50 62 Q 88 62 88 88 Z" fill="currentColor" />
-            </svg>
-          </div>
           <Image src="/teo-avatar.jpeg" alt="Teo" fill className="object-cover" />
         </div>
         <div className="flex-1">
@@ -88,12 +82,6 @@ function AprenderContent() {
               <div key={msg.id} className={`flex items-end gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
                 {msg.role === "assistant" && (
                   <div className="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden border-2 border-blue-200 relative">
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
-                      <svg viewBox="0 0 100 100" className="w-5 h-5 text-white/70">
-                        <circle cx="50" cy="34" r="19" fill="currentColor" />
-                        <path d="M 12 88 Q 12 62 50 62 Q 88 62 88 88 Z" fill="currentColor" />
-                      </svg>
-                    </div>
                     <Image src="/teo-avatar.jpeg" alt="Teo" fill className="object-cover" />
                   </div>
                 )}
