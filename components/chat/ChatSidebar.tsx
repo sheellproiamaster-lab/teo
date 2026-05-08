@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useChat, type Conversation } from "@/context/ChatContext";
 import SubscriptionModal from "./SubscriptionModal";
+import ThemeModal from "./ThemeModal";
+import UsageModal from "./UsageModal";
 import { useRouter } from "next/navigation";
 
 interface Props {
@@ -15,18 +17,16 @@ export default function ChatSidebar({ open, onClose }: Props) {
   const { user, logout } = useAuth();
   const { conversations, activeId, setActiveId, newConversation, deleteConversation, renameConversation, toggleFavorite } = useChat();
   const [subOpen, setSubOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const [usageOpen, setUsageOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState("");
+  const isPro = user?.plan === "pro";
 
-  const handleSelect = (id: string) => {
-    setActiveId(id);
-  };
-
-  const handleNew = () => {
-    newConversation();
-  };
+  const handleSelect = (id: string) => setActiveId(id);
+  const handleNew = () => newConversation();
 
   const startRename = (conv: Conversation) => {
     setRenameId(conv.id);
@@ -46,20 +46,21 @@ export default function ChatSidebar({ open, onClose }: Props) {
 
   return (
     <>
-      {/* Overlay — fecha ao clicar fora */}
-      {open && (
-        <div className="fixed inset-0 bg-black/30 z-30" onClick={onClose} />
-      )}
+      {open && <div className="fixed inset-0 bg-black/30 z-30" onClick={onClose} />}
 
-      {/* Sidebar */}
-      <aside
-        className={`fixed top-0 left-0 h-full z-40 flex flex-col bg-white border-r border-blue-100 shadow-2xl transition-transform duration-300 w-72
-          ${open ? "translate-x-0" : "-translate-x-full"}`}
+      <aside className={`fixed top-0 left-0 h-full z-40 flex flex-col bg-white border-r border-blue-100 shadow-2xl transition-transform duration-300
+        w-80 md:w-96
+        ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         {/* Header */}
         <div className="px-5 pt-6 pb-4 border-b border-blue-100">
           <p className="text-blue-400 text-xs font-semibold uppercase tracking-widest mb-0.5">Olá,</p>
           <p className="font-bold text-xl text-blue-800 leading-tight truncate">{user?.name}</p>
+          {isPro && (
+            <span className="inline-flex items-center gap-1 bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-xs font-bold px-2 py-0.5 rounded-full mt-1">
+              ⭐ VIP
+            </span>
+          )}
         </div>
 
         {/* Nova conversa */}
@@ -83,8 +84,7 @@ export default function ChatSidebar({ open, onClose }: Props) {
               {renameId === conv.id ? (
                 <div className="flex gap-1 px-1">
                   <input
-                    autoFocus
-                    value={renameVal}
+                    autoFocus value={renameVal}
                     onChange={e => setRenameVal(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter") confirmRename(); if (e.key === "Escape") setRenameId(null); }}
                     className="flex-1 bg-slate-100 text-slate-800 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400 border border-slate-300"
@@ -103,61 +103,33 @@ export default function ChatSidebar({ open, onClose }: Props) {
                       {conv.title}
                     </span>
                   </div>
-
                   <button
                     onClick={e => { e.stopPropagation(); setOpenMenuId(openMenuId === conv.id ? null : conv.id); }}
                     className="flex-shrink-0 text-slate-300 hover:text-slate-500 transition-colors opacity-0 group-hover:opacity-100 text-base leading-none"
-                  >
-                    ›
-                  </button>
+                  >›</button>
                 </div>
               )}
 
-              {/* Dropdown menu */}
               {openMenuId === conv.id && (
-                <div
-                  className="absolute right-1 top-8 z-10 bg-white border border-slate-200 rounded-xl shadow-xl py-1 w-40"
-                  onClick={e => e.stopPropagation()}
-                >
-                  <button
-                    onClick={() => { toggleFavorite(conv.id); setOpenMenuId(null); }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-2"
-                  >
-                    <span className="text-yellow-500">★</span>
-                    {conv.isFavorite ? "Desfavoritar" : "Favoritar"}
+                <div className="absolute right-1 top-8 z-10 bg-white border border-slate-200 rounded-xl shadow-xl py-1 w-40" onClick={e => e.stopPropagation()}>
+                  <button onClick={() => { toggleFavorite(conv.id); setOpenMenuId(null); }} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-2">
+                    <span className="text-yellow-500">★</span>{conv.isFavorite ? "Desfavoritar" : "Favoritar"}
                   </button>
-                  <button
-                    onClick={() => startRename(conv)}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-2"
-                  >
+                  <button onClick={() => startRename(conv)} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-2">
                     <span>✏️</span> Renomear
                   </button>
-                  <button
-                    onClick={() => { setDeleteConfirmId(conv.id); setOpenMenuId(null); }}
-                    className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors flex items-center gap-2"
-                  >
+                  <button onClick={() => { setDeleteConfirmId(conv.id); setOpenMenuId(null); }} className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors flex items-center gap-2">
                     <span>🗑</span> Excluir
                   </button>
                 </div>
               )}
 
-              {/* Confirmação de exclusão */}
               {deleteConfirmId === conv.id && (
                 <div className="absolute left-1 right-1 top-0 z-10 bg-white border border-red-200 rounded-xl shadow-xl p-4">
                   <p className="text-sm text-slate-700 mb-3 leading-snug">Tem certeza que deseja excluir essa conversa?</p>
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => setDeleteConfirmId(null)}
-                      className="flex-1 py-1.5 rounded-lg text-sm border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={() => { deleteConversation(conv.id); setDeleteConfirmId(null); }}
-                      className="flex-1 py-1.5 rounded-lg text-sm bg-red-500 hover:bg-red-600 text-white font-semibold transition-colors"
-                    >
-                      Excluir
-                    </button>
+                    <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-1.5 rounded-lg text-sm border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors">Cancelar</button>
+                    <button onClick={() => { deleteConversation(conv.id); setDeleteConfirmId(null); }} className="flex-1 py-1.5 rounded-lg text-sm bg-red-500 hover:bg-red-600 text-white font-semibold transition-colors">Excluir</button>
                   </div>
                 </div>
               )}
@@ -167,24 +139,26 @@ export default function ChatSidebar({ open, onClose }: Props) {
 
         {/* Rodapé */}
         <div className="border-t border-blue-100 px-4 py-4 flex flex-col gap-1">
-          <button
-            onClick={() => setSubOpen(true)}
-            className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold text-yellow-600 hover:bg-yellow-50 transition-colors flex items-center gap-2"
-          >
+          <button onClick={() => setSubOpen(true)} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold text-yellow-600 hover:bg-yellow-50 transition-colors flex items-center gap-2">
             <span>✦</span> Assinatura VIP
+          </button>
+          <button onClick={() => setThemeOpen(true)} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-2">
+            <span>🎨</span> Aparência
+          </button>
+          <button onClick={() => setUsageOpen(true)} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-2">
+            <span>📊</span> Uso
           </button>
           <div className="h-px bg-slate-100 my-1" />
           <p className="text-xs text-slate-400 px-3 truncate">{user?.email}</p>
-          <button
-            onClick={handleLogout}
-            className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-          >
+          <button onClick={handleLogout} className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
             Sair
           </button>
         </div>
       </aside>
 
       <SubscriptionModal open={subOpen} onClose={() => setSubOpen(false)} />
+      <ThemeModal open={themeOpen} onClose={() => setThemeOpen(false)} />
+      <UsageModal open={usageOpen} onClose={() => setUsageOpen(false)} />
     </>
   );
 }
