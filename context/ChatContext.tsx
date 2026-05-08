@@ -57,10 +57,6 @@ function getUsageKey(userId: string) {
   return `teo_usage_${userId}_${new Date().toDateString()}`;
 }
 
-function getCooldownKey(userId: string) {
-  return `teo_cooldown_${userId}`;
-}
-
 async function uploadFileToStorage(file: FileAttachment): Promise<string> {
   try {
     const res = await fetch("/api/upload", {
@@ -121,7 +117,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             role: m.role as "user" | "assistant",
             content: m.content,
             timestamp: m.created_at,
-            questionCards: null,
+            searched: m.metadata?.searched ?? false,
+            questionCards: m.metadata?.questionCards ?? null,
+            imageUrl: m.image_url ?? null,
+            docType: m.document_type ?? null,
             attachments: [],
           })),
         };
@@ -163,15 +162,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const sendMessage = useCallback(async (content: string, attachments?: FileAttachment[]) => {
     if (!user) return;
 
-    if (!isPro && messagesUsed >= DAILY_LIMIT) {
-      const cooldownKey = getCooldownKey(user.id);
-      const existing = localStorage.getItem(cooldownKey);
-      if (!existing) {
-        const end = Date.now() + 6 * 60 * 60 * 1000;
-        localStorage.setItem(cooldownKey, String(end));
-      }
-      return;
-    }
+    if (!isPro && messagesUsed >= DAILY_LIMIT) return;
 
     setIsLoading(true);
 
@@ -182,7 +173,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setMessagesUsed(newCount);
     }
 
-    // Upload arquivos para Supabase Storage via API
     let uploadedAttachments = attachments || [];
     if (attachments && attachments.length > 0) {
       uploadedAttachments = await Promise.all(
@@ -209,7 +199,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }));
 
     if (isNew || !currentConv) {
-      const title = content.slice(0, 45) + (content.length > 45 ? "…" : "") || (attachments?.length ? `${attachments.length} arquivo(s)` : "Nova conversa");
+      const title = content.slice(0, 45) + (content.length > 45 ? "…" : "") || "Nova conversa";
       await supabase.from("conversations").insert({ id: targetId, user_id: user.id, title });
       setConversations(prev => [{
         id: targetId, title, messages: [userMsg],
@@ -240,6 +230,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ messages: apiMessages, attachments: attachments || [] }),
       });
 
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const data = await res.json();
       const assistantMsg: Message = {
         id: crypto.randomUUID(), role: "assistant",
@@ -251,9 +243,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         docType: data.docType ?? null,
       };
 
+      // Salva no Supabase com todos os campos extras
       await supabase.from("messages").insert({
-        id: assistantMsg.id, conversation_id: targetId, user_id: user.id,
-        role: "assistant", content: assistantMsg.content, type: "text",
+        id: assistantMsg.id,
+        conversation_id: targetId,
+        user_id: user.id,
+        role: "assistant",
+        content: assistantMsg.content,
+        type: "text",
+        image_url: assistantMsg.imageUrl ?? null,
+        document_type: assistantMsg.docType ?? null,
+        metadata: {
+          searched: assistantMsg.searched ?? false,
+          questionCards: assistantMsg.questionCards ?? null,
+        },
       });
 
       await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", targetId);

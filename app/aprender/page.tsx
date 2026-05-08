@@ -25,8 +25,12 @@ function AprenderContent() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const DAILY_LIMIT = 15;
 
+  const initialized = useRef(false);
   useEffect(() => {
-    newConversation();
+    if (!initialized.current) {
+      initialized.current = true;
+      newConversation();
+    }
   }, []);
 
   useEffect(() => {
