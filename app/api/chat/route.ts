@@ -150,6 +150,17 @@ function buildMessageContent(text: string, attachments: Attachment[]): Anthropic
   return contentParts.length > 0 ? contentParts : (text || " ");
 }
 
+// Limpa o histórico removendo tool_use/tool_result para evitar erro 400
+function sanitizeHistory(messages: { role: string; content: string }[]): Anthropic.MessageParam[] {
+  return messages
+    .filter(m => m.role === "user" || m.role === "assistant")
+    .filter(m => typeof m.content === "string")
+    .map(m => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
+}
+
 async function processResponse(rawText: string): Promise<{
   content: string;
   docContent: string;
@@ -174,8 +185,14 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const anthropic = getAnthropic();
-    const { messages, attachments } = await req.json();
 
+    // Lê o body como texto primeiro para verificar tamanho
+    const bodyText = await req.text();
+    if (bodyText.length > 4 * 1024 * 1024) {
+      return NextResponse.json({ error: "Arquivo muito grande. Use arquivos menores que 4MB." }, { status: 413 });
+    }
+
+    const { messages, attachments } = JSON.parse(bodyText);
     const lastMessage = messages[messages.length - 1]?.content || "";
     const currentAttachments: Attachment[] = attachments || [];
 
@@ -187,10 +204,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const history = messages.slice(-10).map((m: { role: string; content: string }) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    }));
+    // Usa histórico sanitizado — remove qualquer tool_use/tool_result do passado
+    const history = sanitizeHistory(messages.slice(-10));
 
     const lastContent = buildMessageContent(
       lastMessage + (extractedTexts.length > 0 ? "\n\n" + extractedTexts.join("\n\n") : ""),
