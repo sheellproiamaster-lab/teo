@@ -175,7 +175,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const targetId: string = activeId ?? crypto.randomUUID();
     const isNew = !activeId;
     const currentConv = conversationsRef.current.find(c => c.id === targetId);
-    const apiMessages = [...(currentConv?.messages ?? []), userMsg].map(m => ({ role: m.role, content: m.content }));
+    const apiMessages = [...(currentConv?.messages ?? []), userMsg].map(m => ({
+      role: m.role,
+      content: m.content,
+      attachments: m.attachments || [],
+    }));
 
     if (isNew || !currentConv) {
       const title = content.slice(0, 45) + (content.length > 45 ? "…" : "") || (attachments?.length ? `${attachments.length} arquivo(s)` : "Nova conversa");
@@ -206,7 +210,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages }),
+        body: JSON.stringify({ messages: apiMessages, attachments: attachments || [] }),
       });
 
       const data = await res.json();

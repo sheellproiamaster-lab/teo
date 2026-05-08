@@ -5,13 +5,13 @@ import { useAuth } from "@/context/AuthContext";
 
 const MAX_FILES = 5;
 
-export default function ChatInput({ isWelcome }: { isWelcome?: boolean }) {
+export default function ChatInput({ isWelcome, inputRef }: { isWelcome?: boolean; inputRef?: React.RefObject<HTMLTextAreaElement | null> }) {
   const { sendMessage, isLoading, isBlocked, messagesUsed } = useChat();
   const { user } = useAuth();
   const [text, setText] = useState("");
   const [files, setFiles] = useState<FileAttachment[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = inputRef ?? useRef<HTMLTextAreaElement>(null);
   const isPro = user?.plan === "pro";
   const DAILY_LIMIT = 15;
 
