@@ -1,73 +1,68 @@
 "use client";
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { supabase } from "@/lib/supabase";
+import { User as SupabaseUser } from "@supabase/supabase-js";
 
 export interface User {
   id: string;
   name: string;
   email: string;
-}
-
-interface StoredUser extends User {
-  password: string;
+  avatar_url?: string;
+  plan?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
-  register: (name: string, email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
-  logout: () => void;
+  loginWithGoogle: () => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+function mapUser(u: SupabaseUser): User {
+  return {
+    id: u.id,
+    name: u.user_metadata?.full_name || u.email || "Usuário",
+    email: u.email || "",
+    avatar_url: u.user_metadata?.avatar_url,
+    plan: "free",
+  };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("teo_session");
-      if (stored) setUser(JSON.parse(stored));
-    } catch {}
-    setLoading(false);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ? mapUser(session.user) : null);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ? mapUser(session.user) : null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const getUsers = (): StoredUser[] => {
-    try { return JSON.parse(localStorage.getItem("teo_users") || "[]"); }
-    catch { return []; }
+  const loginWithGoogle = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
   };
 
-  const login = async (email: string, password: string) => {
-    const users = getUsers();
-    const found = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-    if (!found) return { ok: false, error: "E-mail ou senha incorretos" };
-    const { password: _, ...session } = found;
-    setUser(session);
-    localStorage.setItem("teo_session", JSON.stringify(session));
-    return { ok: true };
-  };
-
-  const register = async (name: string, email: string, password: string) => {
-    const users = getUsers();
-    if (users.find(u => u.email.toLowerCase() === email.toLowerCase()))
-      return { ok: false, error: "E-mail já cadastrado" };
-    const newUser: StoredUser = { id: crypto.randomUUID(), name, email, password, createdAt: new Date().toISOString() } as any;
-    users.push(newUser);
-    localStorage.setItem("teo_users", JSON.stringify(users));
-    const { password: _, ...session } = newUser;
-    setUser(session);
-    localStorage.setItem("teo_session", JSON.stringify(session));
-    return { ok: true };
-  };
-
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem("teo_session");
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );
