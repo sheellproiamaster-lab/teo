@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChat } from "@/context/ChatContext";
+import { useAuth } from "@/context/AuthContext";
 import MessageBubble from "./MessageBubble";
 import WelcomeScreen from "./WelcomeScreen";
 import ChatInput from "./ChatInput";
@@ -11,15 +12,47 @@ interface Props {
 
 export default function ChatMain({ onMenuToggle }: Props) {
   const { active, isLoading } = useChat();
+  const { user } = useAuth();
   const bottomRef = useRef<HTMLDivElement>(null);
   const messages = active?.messages ?? [];
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, isLoading]);
 
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const handleUpgrade = async () => {
+    setUpgradeLoading(true);
+    try {
+      const res = await fetch("/api/stripe/checkout", { method: "POST" });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      else setToast("Erro ao abrir pagamento. Tente novamente.");
+    } catch {
+      setToast("Erro de conexão. Tente novamente.");
+    } finally {
+      setUpgradeLoading(false);
+    }
+  };
+
+  const isPro = user?.plan === "pro";
+
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-slate-50">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-500 text-white text-sm font-semibold px-5 py-3 rounded-xl shadow-lg">
+          {toast}
+        </div>
+      )}
+
       {/* Top bar */}
       <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-blue-100 shadow-sm">
         <button
@@ -31,9 +64,24 @@ export default function ChatMain({ onMenuToggle }: Props) {
           </svg>
           Menu
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-1">
           <span className="text-lg font-black text-blue-600">Teo</span>
         </div>
+
+        {/* Badge plano + botão upgrade */}
+        {!isPro ? (
+          <button
+            onClick={handleUpgrade}
+            disabled={upgradeLoading}
+            className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition-all disabled:opacity-60"
+          >
+            ⭐ {upgradeLoading ? "Aguarde..." : "Seja VIP — R$47/mês"}
+          </button>
+        ) : (
+          <span className="flex items-center gap-1 bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+            ⭐ VIP
+          </span>
+        )}
       </header>
 
       {/* Messages area */}
