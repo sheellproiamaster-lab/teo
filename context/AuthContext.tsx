@@ -20,13 +20,19 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-function mapUser(u: SupabaseUser): User {
+async function mapUser(u: SupabaseUser): Promise<User> {
+  const { data } = await supabase
+    .from("users")
+    .select("plan")
+    .eq("id", u.id)
+    .single();
+
   return {
     id: u.id,
     name: u.user_metadata?.full_name || u.email || "Usuário",
     email: u.email || "",
     avatar_url: u.user_metadata?.avatar_url,
-    plan: "free",
+    plan: data?.plan || "free",
   };
 }
 
@@ -35,13 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ? mapUser(session.user) : null);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setUser(session?.user ? await mapUser(session.user) : null);
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ? mapUser(session.user) : null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setUser(session?.user ? await mapUser(session.user) : null);
     });
 
     return () => subscription.unsubscribe();
