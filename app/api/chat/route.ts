@@ -21,6 +21,18 @@ async function tavilySearch(query: string): Promise<string> {
   return data.answer || "Nenhum resultado encontrado.";
 }
 
+function needsSearch(message: string): boolean {
+  const keywords = [
+    "pesquisa", "pesquisar", "busca", "buscar", "procura", "procurar",
+    "encontra", "encontrar", "clínica", "clinica", "especialista", "terapeuta",
+    "médico", "medico", "hospital", "escola", "preço", "preco", "valor",
+    "onde", "qual o melhor", "me indica", "me indicar", "recomenda",
+    "novidade", "atualidade", "recente", "hoje", "agora", "notícia"
+  ];
+  const lower = message.toLowerCase();
+  return keywords.some(k => lower.includes(k));
+}
+
 function parseOptions(text: string): { content: string; questionCards: { q: string; o: string[] } | null } {
   const match = text.match(/\[OPTIONS\]([\s\S]*?)\[\/OPTIONS\]/);
   if (!match) return { content: text.trim(), questionCards: null };
@@ -40,20 +52,46 @@ export async function POST(req: NextRequest) {
     const anthropic = getAnthropic();
     const { messages } = await req.json();
 
-    const history = messages.map((m: { role: string; content: string }) => ({
+    const history = messages.slice(-10).map((m: { role: string; content: string }) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     }));
 
+    const lastMessage = messages[messages.length - 1]?.content || "";
+    const shouldSearch = needsSearch(lastMessage);
+
+    // Força busca imediata se detectar necessidade
+    if (shouldSearch) {
+      const searchResults = await tavilySearch(lastMessage.slice(0, 200));
+
+      const final = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 750,
+        system: SYSTEM_PROMPT,
+        messages: [
+          ...history.slice(0, -1),
+          {
+            role: "user",
+            content: `${lastMessage}\n\n[Resultado da pesquisa na internet]: ${searchResults}`,
+          },
+        ],
+      });
+
+      const rawText = final.content.find((b) => b.type === "text")?.text ?? "Não consegui buscar essa informação.";
+      const { content, questionCards } = parseOptions(rawText);
+      return NextResponse.json({ content, searched: true, query: lastMessage.slice(0, 80), questionCards });
+    }
+
+    // Resposta normal com ferramenta de busca disponível
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 750,
       system: SYSTEM_PROMPT,
       messages: history,
       tools: [
         {
           name: "search_web",
-          description: "Pesquisa informações atualizadas na internet. Use para dados em tempo real: pessoas, clínicas, preços, eventos, notícias.",
+          description: "Pesquisa informações atualizadas na internet. Use para dados em tempo real: clínicas, especialistas, preços, eventos, notícias, novidades científicas.",
           input_schema: {
             type: "object" as const,
             properties: {
@@ -65,16 +103,14 @@ export async function POST(req: NextRequest) {
       ],
     });
 
-    // Claude quer buscar
     const toolUse = response.content.find((b) => b.type === "tool_use");
     if (toolUse && toolUse.type === "tool_use") {
       const query = (toolUse.input as { query: string }).query;
       const searchResults = await tavilySearch(query);
 
-      // Manda resultado de volta pro Claude responder
       const final = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1024,
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 750,
         system: SYSTEM_PROMPT,
         messages: [
           ...history,
@@ -97,7 +133,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ content, searched: true, query, questionCards });
     }
 
-    // Resposta direta sem busca
     const rawText = response.content.find((b) => b.type === "text")?.text ?? "Não entendi. Pode reformular?";
     const { content, questionCards } = parseOptions(rawText);
     return NextResponse.json({ content, questionCards });
