@@ -91,7 +91,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
 
-  // Carrega uso diário e cronômetro
   useEffect(() => {
     if (!user) return;
     const key = getUsageKey(user.id);
@@ -107,7 +106,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  // Cronômetro regressivo
   useEffect(() => {
     if (cooldownRemaining <= 0) return;
     const interval = setInterval(() => {
@@ -127,7 +125,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [cooldownRemaining, user]);
 
-  // Carrega só a lista de conversas — SEM mensagens ainda
   useEffect(() => {
     if (!user) { setConversations([]); setActiveIdState(null); return; }
     const load = async () => {
@@ -136,7 +133,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         .select("id, title, created_at, updated_at")
         .eq("user_id", user.id)
         .order("updated_at", { ascending: false })
-        .limit(30);
+        .limit(20);
 
       if (!convs) return;
 
@@ -151,7 +148,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     load();
   }, [user]);
 
-  // Carrega mensagens de uma conversa só quando necessário
   const loadMessages = useCallback(async (convId: string) => {
     const already = conversationsRef.current.find(c => c.id === convId);
     if (already && already.messages.length > 0) return;
@@ -160,7 +156,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       .from("messages")
       .select("*")
       .eq("conversation_id", convId)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .limit(50);
 
     setConversations(prev => prev.map(c => c.id === convId ? {
       ...c,
@@ -253,11 +250,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const targetId: string = activeId ?? crypto.randomUUID();
     const isNew = !activeId;
     const currentConv = conversationsRef.current.find(c => c.id === targetId);
-    const apiMessages = [...(currentConv?.messages ?? []), userMsg].map(m => ({
-      role: m.role,
-      content: m.content,
-      attachments: m.attachments || [],
-    }));
+
+    // Limita histórico a 6 mensagens para ser mais rápido
+    const apiMessages = [...(currentConv?.messages ?? []), userMsg]
+      .slice(-6)
+      .map(m => ({
+        role: m.role,
+        content: m.content,
+        attachments: m.attachments || [],
+      }));
 
     if (isNew || !currentConv) {
       const title = content.slice(0, 45) + (content.length > 45 ? "…" : "") || (attachments?.length ? `${attachments.length} arquivo(s)` : "Nova conversa");
@@ -285,11 +286,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
 
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 50000);
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: apiMessages, attachments: attachments || [] }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -326,10 +332,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setConversations(prev => prev.map(c => c.id === targetId ? {
         ...c, messages: [...c.messages, assistantMsg],
       } : c));
-    } catch {
+
+    } catch (err: any) {
+      const isTimeout = err?.name === "AbortError";
       const errMsg: Message = {
         id: crypto.randomUUID(), role: "assistant",
-        content: "Erro de conexão. Verifique sua internet e tente novamente.",
+        content: isTimeout
+          ? "Demorei mais que o esperado. Tente novamente com uma mensagem mais curta."
+          : "Erro de conexão. Verifique sua internet e tente novamente.",
         timestamp: new Date().toISOString(),
       };
       setConversations(prev => prev.map(c => c.id === targetId ? {
