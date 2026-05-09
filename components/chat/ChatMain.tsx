@@ -5,9 +5,30 @@ import { useAuth } from "@/context/AuthContext";
 import MessageBubble from "./MessageBubble";
 import WelcomeScreen from "./WelcomeScreen";
 import ChatInput from "./ChatInput";
+import Image from "next/image";
 
 interface Props {
   onMenuToggle: () => void;
+}
+
+function TeoTyping() {
+  const [dots, setDots] = useState("");
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots(d => d.length >= 3 ? "" : d + ".");
+    }, 400);
+    return () => clearInterval(interval);
+  }, []);
+  return (
+    <div className="flex items-end gap-3">
+      <div className="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden border-2 border-blue-200 relative">
+        <Image src="/teo-avatar.jpeg" alt="Teo" fill className="object-cover" />
+      </div>
+      <div className="bg-white border border-blue-100 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
+        <p className="text-sm text-blue-500 font-medium">Teo está executando{dots}</p>
+      </div>
+    </div>
+  );
 }
 
 export default function ChatMain({ onMenuToggle }: Props) {
@@ -89,24 +110,7 @@ export default function ChatMain({ onMenuToggle }: Props) {
             {messages.map(msg => (
               <MessageBubble key={msg.id} msg={msg} />
             ))}
-
-            {isLoading && (
-              <div className="flex items-end gap-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center flex-shrink-0">
-                  <svg viewBox="0 0 100 100" className="w-5 h-5 text-white/70">
-                    <circle cx="50" cy="34" r="19" fill="currentColor" />
-                    <path d="M 12 88 Q 12 62 50 62 Q 88 62 88 88 Z" fill="currentColor" />
-                  </svg>
-                </div>
-                <div className="bg-white border border-blue-100 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
-                  <div className="flex gap-1 items-center h-4">
-                    {[0, 0.2, 0.4].map(d => (
-                      <div key={d} className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: `${d}s` }} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
+            {isLoading && <TeoTyping />}
             <div ref={bottomRef} />
           </div>
         )}

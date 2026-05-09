@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useChat, ChatProvider } from "@/context/ChatContext";
 import Image from "next/image";
-// Adicionado o import solicitado abaixo:
 import MessageBubble from "@/components/chat/MessageBubble";
 
 const LEARN_PROMPTS = [
@@ -17,10 +16,30 @@ const LEARN_PROMPTS = [
   "Como aplicar técnicas de comunicação alternativa?",
 ];
 
+function TeoTyping() {
+  const [dots, setDots] = useState("");
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots(d => d.length >= 3 ? "" : d + ".");
+    }, 400);
+    return () => clearInterval(interval);
+  }, []);
+  return (
+    <div className="flex items-end gap-3">
+      <div className="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden border-2 border-blue-200 relative">
+        <Image src="/teo-avatar.jpeg" alt="Teo" fill className="object-cover" />
+      </div>
+      <div className="bg-white border border-blue-100 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
+        <p className="text-sm text-blue-500 font-medium">Teo está executando{dots}</p>
+      </div>
+    </div>
+  );
+}
+
 function AprenderContent() {
   const router = useRouter();
   const { user } = useAuth();
-  const { sendMessage, active, newConversation, isLoading, isBlocked, messagesUsed } = useChat();
+  const { sendMessage, active, newConversation, isLoading, isBlocked, messagesUsed, cooldownRemaining } = useChat();
   const [text, setText] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const DAILY_LIMIT = 15;
@@ -44,6 +63,14 @@ function AprenderContent() {
   };
 
   const messages = active?.messages ?? [];
+
+  function formatCooldown(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 via-white to-cyan-50">
@@ -92,23 +119,7 @@ function AprenderContent() {
                 content: msg.content.replace("[Modo Aprenda com o Teo] ", ""),
               }} />
             ))}
-            {isLoading && (
-              <div className="flex items-end gap-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center flex-shrink-0">
-                  <svg viewBox="0 0 100 100" className="w-5 h-5 text-white/70">
-                    <circle cx="50" cy="34" r="19" fill="currentColor" />
-                    <path d="M 12 88 Q 12 62 50 62 Q 88 62 88 88 Z" fill="currentColor" />
-                  </svg>
-                </div>
-                <div className="bg-white border border-blue-100 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
-                  <div className="flex gap-1 items-center h-4">
-                    {[0, 0.2, 0.4].map(d => (
-                      <div key={d} className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: `${d}s` }} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
+            {isLoading && <TeoTyping />}
             <div ref={bottomRef} />
           </div>
         )}
@@ -119,7 +130,11 @@ function AprenderContent() {
           {isBlocked && (
             <div className="mb-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-center">
               <p className="text-red-600 font-bold text-sm">Limite diário atingido</p>
-              <p className="text-slate-500 text-xs">Volte em 6 horas ou assine o VIP</p>
+              {cooldownRemaining > 0 ? (
+                <p className="text-slate-500 text-xs font-mono">Libera em: {formatCooldown(cooldownRemaining)}</p>
+              ) : (
+                <p className="text-slate-500 text-xs">Volte em 6 horas ou assine o VIP</p>
+              )}
             </div>
           )}
           <div className={`flex items-end gap-2 bg-slate-50 border rounded-2xl px-3 py-2 transition-all ${isBlocked ? "border-red-200 opacity-60 pointer-events-none" : "border-slate-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100"}`}>
