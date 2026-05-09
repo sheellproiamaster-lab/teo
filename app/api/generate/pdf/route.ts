@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 40%, #1d4ed8 100%);
     color: white;
     padding: 0;
-    min-height: 297mm;
+    min-height: 140mm;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
