@@ -42,8 +42,10 @@ interface ChatContextType {
   active: Conversation | null;
   isLoading: boolean;
   isBlocked: boolean;
+  cooldownRemaining: number;
   messagesUsed: number;
   setActiveId: (id: string | null) => void;
+  loadMessages: (convId: string) => Promise<void>;
   newConversation: () => void;
   deleteConversation: (id: string) => void;
   renameConversation: (id: string, title: string) => void;
@@ -53,9 +55,14 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | null>(null);
 const DAILY_LIMIT = 15;
+const COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 function getUsageKey(userId: string) {
   return `teo_usage_${userId}_${new Date().toDateString()}`;
+}
+
+function getCooldownKey(userId: string) {
+  return `teo_cooldown_${userId}`;
 }
 
 async function uploadFileToStorage(file: FileAttachment): Promise<string> {
@@ -75,63 +82,107 @@ async function uploadFileToStorage(file: FileAttachment): Promise<string> {
 export function ChatProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveIdState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [messagesUsed, setMessagesUsed] = useState(0);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const conversationsRef = useRef<Conversation[]>([]);
   const isPro = user?.plan === "pro";
 
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
 
+  // Carrega uso diário e cronômetro
   useEffect(() => {
     if (!user) return;
     const key = getUsageKey(user.id);
     const stored = parseInt(localStorage.getItem(key) || "0");
     setMessagesUsed(stored);
+
+    const cooldownKey = getCooldownKey(user.id);
+    const cooldownEnd = parseInt(localStorage.getItem(cooldownKey) || "0");
+    if (cooldownEnd > Date.now()) {
+      setCooldownRemaining(cooldownEnd - Date.now());
+    } else {
+      localStorage.removeItem(cooldownKey);
+    }
   }, [user]);
 
+  // Cronômetro regressivo
   useEffect(() => {
-    if (!user) { setConversations([]); setActiveId(null); return; }
+    if (cooldownRemaining <= 0) return;
+    const interval = setInterval(() => {
+      setCooldownRemaining(prev => {
+        if (prev <= 1000) {
+          if (user) {
+            const key = getUsageKey(user.id);
+            localStorage.setItem(key, "0");
+            setMessagesUsed(0);
+            localStorage.removeItem(getCooldownKey(user.id));
+          }
+          return 0;
+        }
+        return prev - 1000;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldownRemaining, user]);
+
+  // Carrega só a lista de conversas — SEM mensagens ainda
+  useEffect(() => {
+    if (!user) { setConversations([]); setActiveIdState(null); return; }
     const load = async () => {
       const { data: convs } = await supabase
         .from("conversations")
-        .select("*")
+        .select("id, title, created_at, updated_at")
         .eq("user_id", user.id)
-        .order("updated_at", { ascending: false });
+        .order("updated_at", { ascending: false })
+        .limit(30);
 
       if (!convs) return;
 
-      const full: Conversation[] = await Promise.all(convs.map(async c => {
-        const { data: msgs } = await supabase
-          .from("messages")
-          .select("*")
-          .eq("conversation_id", c.id)
-          .order("created_at", { ascending: true });
-
-        return {
-          id: c.id,
-          title: c.title,
-          createdAt: c.created_at,
-          isFavorite: false,
-          messages: (msgs || []).map(m => ({
-            id: m.id,
-            role: m.role as "user" | "assistant",
-            content: m.content,
-            timestamp: m.created_at,
-            searched: m.metadata?.searched ?? false,
-            questionCards: m.metadata?.questionCards ?? null,
-            imageUrl: m.image_url ?? null,
-            docType: m.document_type ?? null,
-            docContent: m.metadata?.docContent ?? null,
-            attachments: [],
-          })),
-        };
-      }));
-
-      setConversations(full);
+      setConversations(convs.map(c => ({
+        id: c.id,
+        title: c.title,
+        createdAt: c.created_at,
+        isFavorite: false,
+        messages: [],
+      })));
     };
     load();
   }, [user]);
+
+  // Carrega mensagens de uma conversa só quando necessário
+  const loadMessages = useCallback(async (convId: string) => {
+    const already = conversationsRef.current.find(c => c.id === convId);
+    if (already && already.messages.length > 0) return;
+
+    const { data: msgs } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", convId)
+      .order("created_at", { ascending: true });
+
+    setConversations(prev => prev.map(c => c.id === convId ? {
+      ...c,
+      messages: (msgs || []).map(m => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        timestamp: m.created_at,
+        searched: m.metadata?.searched ?? false,
+        questionCards: m.metadata?.questionCards ?? null,
+        imageUrl: m.image_url ?? null,
+        docType: m.document_type ?? null,
+        docContent: m.metadata?.docContent ?? null,
+        attachments: [],
+      })),
+    } : c));
+  }, []);
+
+  const setActiveId = useCallback((id: string | null) => {
+    setActiveIdState(id);
+    if (id) loadMessages(id);
+  }, [loadMessages]);
 
   const isBlocked = !isPro && messagesUsed >= DAILY_LIMIT;
   const active = conversations.find(c => c.id === activeId) ?? null;
@@ -143,13 +194,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(), isFavorite: false,
     };
     setConversations(prev => [conv, ...prev]);
-    setActiveId(id);
+    setActiveIdState(id);
   }, []);
 
   const deleteConversation = useCallback(async (id: string) => {
     await supabase.from("conversations").delete().eq("id", id);
     setConversations(prev => prev.filter(c => c.id !== id));
-    setActiveId(prev => prev === id ? null : prev);
+    setActiveIdState(prev => prev === id ? null : prev);
   }, []);
 
   const renameConversation = useCallback(async (id: string, title: string) => {
@@ -163,8 +214,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const sendMessage = useCallback(async (content: string, attachments?: FileAttachment[]) => {
     if (!user) return;
-
-    if (!isPro && messagesUsed >= DAILY_LIMIT) return;
+    if (!isPro && messagesUsed >= DAILY_LIMIT) {
+      const cooldownKey = getCooldownKey(user.id);
+      const existing = localStorage.getItem(cooldownKey);
+      if (!existing) {
+        const end = Date.now() + COOLDOWN_MS;
+        localStorage.setItem(cooldownKey, String(end));
+        setCooldownRemaining(COOLDOWN_MS);
+      }
+      return;
+    }
 
     setIsLoading(true);
 
@@ -201,13 +260,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }));
 
     if (isNew || !currentConv) {
-      const title = content.slice(0, 45) + (content.length > 45 ? "…" : "") || "Nova conversa";
+      const title = content.slice(0, 45) + (content.length > 45 ? "…" : "") || (attachments?.length ? `${attachments.length} arquivo(s)` : "Nova conversa");
       await supabase.from("conversations").insert({ id: targetId, user_id: user.id, title });
       setConversations(prev => [{
         id: targetId, title, messages: [userMsg],
         createdAt: new Date().toISOString(), isFavorite: false,
       }, ...prev]);
-      if (isNew) setActiveId(targetId);
+      setActiveIdState(targetId);
     } else {
       const autoTitle = currentConv.messages.length === 0 && currentConv.title === "Nova conversa"
         ? content.slice(0, 45) + (content.length > 45 ? "…" : "")
@@ -222,7 +281,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     await supabase.from("messages").insert({
       id: userMsg.id, conversation_id: targetId, user_id: user.id,
-      role: "user", content, type: "text",
+      role: "user", content: content || "arquivo", type: "text",
     });
 
     try {
@@ -246,7 +305,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         docContent: data.docContent ?? null,
       };
 
-      // Salva no Supabase com todos os campos extras
       await supabase.from("messages").insert({
         id: assistantMsg.id,
         conversation_id: targetId,
@@ -284,8 +342,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   return (
     <ChatContext.Provider value={{
-      conversations, activeId, active, isLoading, isBlocked, messagesUsed,
-      setActiveId, newConversation, deleteConversation,
+      conversations, activeId, active, isLoading, isBlocked,
+      cooldownRemaining, messagesUsed,
+      setActiveId, loadMessages, newConversation, deleteConversation,
       renameConversation, toggleFavorite, sendMessage,
     }}>
       {children}

@@ -5,8 +5,16 @@ import { useAuth } from "@/context/AuthContext";
 
 const MAX_FILES = 5;
 
+function formatCooldown(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
+}
+
 export default function ChatInput({ isWelcome, inputRef }: { isWelcome?: boolean; inputRef?: React.RefObject<HTMLTextAreaElement | null> }) {
-  const { sendMessage, isLoading, isBlocked, messagesUsed } = useChat();
+  const { sendMessage, isLoading, isBlocked, messagesUsed, cooldownRemaining } = useChat();
   const { user } = useAuth();
   const [text, setText] = useState("");
   const [files, setFiles] = useState<FileAttachment[]>([]);
@@ -71,12 +79,15 @@ export default function ChatInput({ isWelcome, inputRef }: { isWelcome?: boolean
     <div className="border-t border-blue-100 bg-white px-4 py-3">
       <div className="max-w-3xl mx-auto">
 
-        {/* Banner bloqueio */}
         {isBlocked && (
           <div className="mb-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
             <div>
               <p className="text-red-600 font-bold text-sm">Limite diário atingido</p>
-              <p className="text-slate-500 text-xs">Você usou {messagesUsed} de {DAILY_LIMIT} mensagens hoje.</p>
+              {cooldownRemaining > 0 ? (
+                <p className="text-slate-500 text-xs font-mono">Libera em: {formatCooldown(cooldownRemaining)}</p>
+              ) : (
+                <p className="text-slate-500 text-xs">Você usou {messagesUsed} de {DAILY_LIMIT} mensagens hoje.</p>
+              )}
             </div>
             <button
               onClick={async () => {
@@ -97,7 +108,6 @@ export default function ChatInput({ isWelcome, inputRef }: { isWelcome?: boolean
             : "border-slate-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100"
         }`}>
 
-          {/* Miniaturas dos arquivos */}
           {files.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-2 pt-1">
               {files.map((f, i) => (
@@ -125,7 +135,6 @@ export default function ChatInput({ isWelcome, inputRef }: { isWelcome?: boolean
             </div>
           )}
 
-          {/* Input row */}
           <div className="flex items-end gap-2">
             <button
               onClick={() => fileRef.current?.click()}
@@ -154,7 +163,6 @@ export default function ChatInput({ isWelcome, inputRef }: { isWelcome?: boolean
               placeholder={isBlocked ? "Limite diário atingido..." : isWelcome ? "" : "Digite sua mensagem para o Teo..."}
               rows={1}
               disabled={isLoading || isBlocked}
-              onClick={() => { if (isWelcome) textareaRef.current?.focus(); }}
               className="flex-1 bg-transparent resize-none text-sm text-slate-700 placeholder-slate-400 focus:outline-none py-1.5 max-h-32 min-h-[36px]"
               style={{ lineHeight: "1.5" }}
               onInput={e => {
@@ -189,11 +197,8 @@ export default function ChatInput({ isWelcome, inputRef }: { isWelcome?: boolean
             </button>
           </div>
 
-          {/* Placeholder laranja só na tela inicial */}
           {isWelcome && !text && files.length === 0 && (
-            <div
-              className="absolute inset-0 flex items-center px-14 pointer-events-none rounded-2xl"
-            >
+            <div className="absolute inset-0 flex items-center px-14 pointer-events-none rounded-2xl">
               <span
                 className="text-sm font-bold pointer-events-auto cursor-text"
                 style={{ color: "#f97316" }}
