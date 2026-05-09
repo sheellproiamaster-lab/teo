@@ -45,7 +45,29 @@ TECHNICAL REQUIREMENTS:
       quality: "hd",
       style: "vivid",
     });
-    return response.data?.[0]?.url ?? null;
+
+    const tempUrl = response.data?.[0]?.url;
+    if (!tempUrl) return null;
+
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const imgRes = await fetch(tempUrl);
+    const buffer = await imgRes.arrayBuffer();
+    const path = `generated/${Date.now()}.png`;
+
+    const { error } = await supabase.storage
+      .from("teo-uploads")
+      .upload(path, Buffer.from(buffer), { contentType: "image/png", upsert: false });
+
+    if (error) return tempUrl;
+
+    const { data } = supabase.storage.from("teo-uploads").getPublicUrl(path);
+    return data.publicUrl;
+
   } catch (err) {
     console.error("[generateImage]", err);
     return null;
