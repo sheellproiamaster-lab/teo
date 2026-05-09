@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
+import { useChat } from "@/context/ChatContext";
 
 interface Props {
   open: boolean;
@@ -12,42 +13,21 @@ const DAILY_LIMIT = 15;
 
 export default function UsageModal({ open, onClose }: Props) {
   const { user } = useAuth();
-  const [used, setUsed] = useState(0);
-  const [resetIn, setResetIn] = useState<string | null>(null);
+  const { messagesUsed, cooldownRemaining } = useChat();
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const isPro = user?.plan === "pro";
 
-  useEffect(() => {
-    if (!open) return;
-    const key = `teo_usage_${user?.id}_${new Date().toDateString()}`;
-    const stored = parseInt(localStorage.getItem(key) || "0");
-    setUsed(stored);
+  const remaining = Math.max(0, DAILY_LIMIT - messagesUsed);
+  const percent = Math.min(100, (messagesUsed / DAILY_LIMIT) * 100);
+  const isBlocked = remaining === 0 && !isPro;
 
-    // Verifica se tem cooldown ativo
-    const cooldownKey = `teo_cooldown_${user?.id}`;
-    const cooldownEnd = localStorage.getItem(cooldownKey);
-    if (cooldownEnd) {
-      const end = parseInt(cooldownEnd);
-      const now = Date.now();
-      if (now < end) {
-        const remaining = end - now;
-        updateCountdown(remaining);
-      }
-    }
-  }, [open, user?.id]);
-
-  const updateCountdown = (remaining: number) => {
-    const hours = Math.floor(remaining / 3600000);
-    const minutes = Math.floor((remaining % 3600000) / 60000);
-    const seconds = Math.floor((remaining % 60000) / 1000);
-    setResetIn(`${String(hours).padStart(2,"0")}:${String(minutes).padStart(2,"0")}:${String(seconds).padStart(2,"0")}`);
-
-    if (remaining > 0) {
-      setTimeout(() => updateCountdown(remaining - 1000), 1000);
-    } else {
-      setResetIn(null);
-    }
-  };
+  function formatCooldown(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
 
   const handleUpgrade = async () => {
     setUpgradeLoading(true);
@@ -55,16 +35,9 @@ export default function UsageModal({ open, onClose }: Props) {
       const res = await fetch("/api/stripe/checkout", { method: "POST" });
       const data = await res.json();
       if (data.url) window.location.href = data.url;
-    } catch {
-      // erro silencioso
-    } finally {
-      setUpgradeLoading(false);
-    }
+    } catch {}
+    finally { setUpgradeLoading(false); }
   };
-
-  const remaining = Math.max(0, DAILY_LIMIT - used);
-  const percent = Math.min(100, (used / DAILY_LIMIT) * 100);
-  const isBlocked = remaining === 0 && !isPro;
 
   return (
     <AnimatePresence>
@@ -92,13 +65,12 @@ export default function UsageModal({ open, onClose }: Props) {
               </p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 px-6 py-6 flex flex-col gap-4">
+            <div className="bg-white px-6 py-6 flex flex-col gap-4">
               {!isPro && (
                 <>
-                  {/* Barra de progresso */}
                   <div>
                     <div className="flex justify-between text-xs text-slate-500 mb-2">
-                      <span>{used} usadas</span>
+                      <span>{messagesUsed} usadas</span>
                       <span>{remaining} restantes</span>
                     </div>
                     <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
@@ -111,16 +83,22 @@ export default function UsageModal({ open, onClose }: Props) {
                     </div>
                   </div>
 
-                  {/* Bloqueado com timer */}
-                  {isBlocked && resetIn && (
+                  {isBlocked && (
                     <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-center">
                       <p className="text-red-600 font-bold text-sm mb-1">Limite atingido!</p>
-                      <p className="text-slate-500 text-xs mb-2">Novas mensagens disponíveis em:</p>
-                      <p className="text-2xl font-black text-red-500 font-mono">{resetIn}</p>
+                      {cooldownRemaining > 0 ? (
+                        <>
+                          <p className="text-slate-500 text-xs mb-2">Novas mensagens disponíveis em:</p>
+                          <p className="text-3xl font-black text-red-500 font-mono tracking-widest">
+                            {formatCooldown(cooldownRemaining)}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-slate-500 text-xs">Envie uma mensagem para iniciar o cronômetro.</p>
+                      )}
                     </div>
                   )}
 
-                  {/* Upgrade */}
                   <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-2xl p-4 text-center">
                     <p className="text-blue-800 font-bold text-sm mb-1">Quer mensagens ilimitadas?</p>
                     <p className="text-slate-500 text-xs mb-3">Assine o plano VIP e nunca fique sem resposta.</p>

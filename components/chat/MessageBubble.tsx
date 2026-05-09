@@ -37,6 +37,7 @@ export default function MessageBubble({ msg }: { msg: Message }) {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [wordLoading, setWordLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [lightbox, setLightbox] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const { hasDoc, type: docTypeFromContent, title } = detectDocument(msg.content);
@@ -224,7 +225,10 @@ export default function MessageBubble({ msg }: { msg: Message }) {
 
         {!isUser && msg.imageUrl && (
           <div className="mt-2 flex flex-col gap-2">
-            <div className="rounded-2xl overflow-hidden border-2 border-blue-200 shadow-lg max-w-xs">
+            <div
+              className="rounded-2xl overflow-hidden border-2 border-blue-200 shadow-lg max-w-xs cursor-zoom-in"
+              onClick={() => setLightbox(true)}
+            >
               <img src={msg.imageUrl} alt="Imagem gerada pelo Teo" className="w-full h-auto object-cover" />
             </div>
             <button
@@ -236,6 +240,36 @@ export default function MessageBubble({ msg }: { msg: Message }) {
               </svg>
               Baixar imagem
             </button>
+            {lightbox && (
+              <div
+                className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4"
+                onClick={() => setLightbox(false)}
+              >
+                <img
+                  src={msg.imageUrl}
+                  alt="Imagem gerada pelo Teo"
+                  className="max-w-full max-h-[80vh] rounded-2xl shadow-2xl object-contain"
+                  onClick={e => e.stopPropagation()}
+                />
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={e => { e.stopPropagation(); handleDownloadImage(); }}
+                    className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-sm font-bold px-5 py-2.5 rounded-xl shadow"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Baixar imagem
+                  </button>
+                  <button
+                    onClick={() => setLightbox(false)}
+                    className="bg-white/20 text-white text-sm font-bold px-5 py-2.5 rounded-xl"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
