@@ -61,13 +61,13 @@ export default function MessageBubble({ msg }: { msg: Message }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: extractDocContent(msg.content, msg.docContent), title }),
       });
-      const html = await res.text();
-      const win = window.open("", "_blank");
-      if (win) {
-        win.document.write(html);
-        win.document.close();
-        setTimeout(() => win.print(), 800);
-      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title || "documento"}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch {
       alert("Erro ao gerar PDF.");
     } finally {
@@ -87,7 +87,7 @@ export default function MessageBubble({ msg }: { msg: Message }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${title}.docx`;
+      a.download = `${title || "documento"}.docx`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -122,13 +122,24 @@ export default function MessageBubble({ msg }: { msg: Message }) {
     }
   };
 
-  const handleDownloadImage = () => {
+  const handleDownloadImage = async () => {
     if (!msg.imageUrl) return;
-    const a = document.createElement("a");
-    a.href = msg.imageUrl;
-    a.download = "teo-imagem.png";
-    a.target = "_blank";
-    a.click();
+    try {
+      const res = await fetch(msg.imageUrl);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "teo-imagem.png";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      const a = document.createElement("a");
+      a.href = msg.imageUrl;
+      a.download = "teo-imagem.png";
+      a.target = "_blank";
+      a.click();
+    }
   };
 
   return (

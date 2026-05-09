@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a2e; background: #fff; }
-  .capa { background: linear-gradient(135deg, #1d4ed8 0%, #0891b2 100%); color: white; padding: 80px 60px; min-height: 220px; display: flex; flex-direction: column; justify-content: center; page-break-after: always; }
+  .capa { background: linear-gradient(135deg, #1d4ed8 0%, #0891b2 100%); color: white; padding: 80px 60px; min-height: 220px; display: flex; flex-direction: column; justify-content: center; }
   .capa-label { font-size: 11px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; opacity: 0.75; margin-bottom: 20px; }
   .capa-titulo { font-size: 32px; font-weight: 900; line-height: 1.3; margin-bottom: 16px; }
   .capa-linha { width: 60px; height: 3px; background: rgba(255,255,255,0.5); border-radius: 2px; margin: 16px 0; }
@@ -51,10 +51,33 @@ ${convertMarkdownToHtml(content)}
 </body>
 </html>`;
 
-    return new NextResponse(html, {
+    const response = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
+      method: "POST",
       headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        "X-Document-Title": encodeURIComponent(title || "documento"),
+        "Content-Type": "application/json",
+        "Authorization": `Basic ${Buffer.from(`api:${process.env.PDFSHIFT_API_KEY}`).toString("base64")}`,
+      },
+      body: JSON.stringify({
+        source: html,
+        landscape: false,
+        use_print: true,
+        format: "A4",
+        margin: { top: "0mm", bottom: "0mm", left: "0mm", right: "0mm" },
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("[pdfshift error]", err);
+      return NextResponse.json({ error: "Erro ao gerar PDF" }, { status: 500 });
+    }
+
+    const pdfBuffer = await response.arrayBuffer();
+
+    return new NextResponse(pdfBuffer, {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${encodeURIComponent(title || "documento")}.pdf"`,
       },
     });
   } catch (err) {
