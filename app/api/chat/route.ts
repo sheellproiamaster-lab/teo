@@ -25,14 +25,25 @@ async function generateImage(prompt: string): Promise<string | null> {
   try {
     const OpenAI = (await import("openai")).default;
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const enrichedPrompt = `${prompt}. Important: Any text visible in the image must be written in Brazilian Portuguese (pt-BR). High quality, professional, detailed, 4K resolution. Style: warm, inclusive, welcoming, modern illustration.`;
+    const enrichedPrompt = `${prompt}
+
+TECHNICAL REQUIREMENTS:
+- Ultra high quality, 4K resolution, professional grade
+- Perfect composition, rule of thirds, professional lighting
+- Sharp focus, no blur, no distortion
+- Any text in the image MUST be written in correct Brazilian Portuguese
+- Photorealistic OR high-end digital art depending on the style requested
+- Rich colors, perfect exposure, professional color grading
+- No watermarks, no signatures, no artifacts
+- Cinema quality, magazine cover level quality`;
+
     const response = await openai.images.generate({
       model: "dall-e-3",
       prompt: enrichedPrompt,
       n: 1,
-      size: "1024x1024",
+      size: "1792x1024",
       quality: "hd",
-      style: "natural",
+      style: "vivid",
     });
     return response.data?.[0]?.url ?? null;
   } catch (err) {
