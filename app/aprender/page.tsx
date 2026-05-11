@@ -7,13 +7,14 @@ import Image from "next/image";
 import MessageBubble from "@/components/chat/MessageBubble";
 
 const LEARN_PROMPTS = [
-  "Quero aprender algo novo sobre inclusão e neurodiversidade",
-  "Me ensine a lidar melhor com situações difíceis no trabalho",
-  "Quero aprender algo estratégico para aplicar no meu trabalho",
-  "Como posso liderar melhor minha equipe e ter mais resultados?",
-  "Quero entender melhor sobre TEA, TDAH e estratégias práticas",
-  "Me ajude a pesquisar o que os melhores especialistas indicam para o desenvolvimento",
-  "Como aplicar técnicas de comunicação alternativa?",
+  "Me ensine como funciona o cérebro TEA, passo a passo",
+  "Quero aprender técnicas de comunicação alternativa na prática",
+  "Me ensine estratégias reais para crises de regulação emocional",
+  "Quero aprender sobre TDAH: como funciona e o que realmente ajuda",
+  "Me ajuda a aprender como montar uma rotina eficaz para meu filho",
+  "Quero aprender meus direitos na inclusão escolar e como agir",
+  "Me ensine ABA de forma simples e aplicável no dia a dia",
+  "Quero aprender sobre altas habilidades e superdotação",
 ];
 
 function TeoTyping() {
