@@ -295,7 +295,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, attachments: attachments || [] }),
+        body: JSON.stringify({ messages: apiMessages, attachments: uploadedAttachments }),
         signal: controller.signal,
       });
       clearTimeout(timeout);

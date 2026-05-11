@@ -146,10 +146,26 @@ interface Attachment {
   isImage: boolean;
 }
 
+async function getBuffer(url: string): Promise<Buffer | null> {
+  if (url.startsWith("data:")) {
+    const base64 = url.split(",")[1];
+    return base64 ? Buffer.from(base64, "base64") : null;
+  }
+  if (url.startsWith("http")) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      return Buffer.from(await res.arrayBuffer());
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 async function extractFileText(attachment: Attachment): Promise<string> {
-  const base64 = attachment.url.split(",")[1];
-  if (!base64) return "";
-  const buffer = Buffer.from(base64, "base64");
+  const buffer = await getBuffer(attachment.url);
+  if (!buffer) return "";
 
   if (attachment.name.endsWith(".docx") || attachment.name.endsWith(".doc")) {
     const mammoth = await import("mammoth");
@@ -174,23 +190,32 @@ async function extractFileText(attachment: Attachment): Promise<string> {
   return "";
 }
 
-function buildMessageContent(text: string, attachments: Attachment[]): Anthropic.MessageParam["content"] {
+async function buildMessageContent(text: string, attachments: Attachment[]): Promise<Anthropic.MessageParam["content"]> {
   if (!attachments || attachments.length === 0) return text || " ";
 
   const contentParts: Anthropic.ContentBlockParam[] = [];
 
   for (const att of attachments) {
-    if (att.isImage && att.url.startsWith("data:")) {
-      const base64 = att.url.split(",")[1];
-      const mediaType = att.type as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-      contentParts.push({ type: "image", source: { type: "base64", media_type: mediaType, data: base64 } });
+    if (att.isImage) {
+      if (att.url.startsWith("data:")) {
+        const base64 = att.url.split(",")[1];
+        if (base64) {
+          const mediaType = att.type as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+          contentParts.push({ type: "image", source: { type: "base64", media_type: mediaType, data: base64 } });
+        }
+      } else if (att.url.startsWith("http")) {
+        contentParts.push({ type: "image", source: { type: "url", url: att.url } } as Anthropic.ContentBlockParam);
+      }
     }
   }
 
   for (const att of attachments) {
-    if (!att.isImage && att.type === "application/pdf" && att.url.startsWith("data:")) {
-      const base64 = att.url.split(",")[1];
-      contentParts.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } } as Anthropic.ContentBlockParam);
+    if (!att.isImage && att.type === "application/pdf") {
+      const buffer = await getBuffer(att.url);
+      if (buffer) {
+        const base64 = att.url.startsWith("data:") ? att.url.split(",")[1] : buffer.toString("base64");
+        contentParts.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } } as Anthropic.ContentBlockParam);
+      }
     }
   }
 
@@ -236,10 +261,9 @@ export async function POST(req: NextRequest) {
   try {
     const anthropic = getAnthropic();
 
-    // Lê o body como texto primeiro para verificar tamanho
     const bodyText = await req.text();
-    if (bodyText.length > 4 * 1024 * 1024) {
-      return NextResponse.json({ error: "Arquivo muito grande. Use arquivos menores que 4MB." }, { status: 413 });
+    if (bodyText.length > 20 * 1024 * 1024) {
+      return NextResponse.json({ error: "Arquivo muito grande. Use arquivos menores que 15MB." }, { status: 413 });
     }
 
     const { messages, attachments } = JSON.parse(bodyText);
@@ -254,10 +278,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Usa histórico sanitizado — remove qualquer tool_use/tool_result do passado
     const history = sanitizeHistory(messages.slice(-10));
 
-    const lastContent = buildMessageContent(
+    const lastContent = await buildMessageContent(
       lastMessage + (extractedTexts.length > 0 ? "\n\n" + extractedTexts.join("\n\n") : ""),
       currentAttachments
     );
