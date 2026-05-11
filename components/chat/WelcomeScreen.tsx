@@ -12,9 +12,9 @@ const TOP_CARDS = [
 ];
 
 const BOTTOM_CARDS = [
-  "Quais estratégias realmente funcionam para o desenvolvimento?",
   "Como lidar com as crises em casa?",
-  "Nossos direitos — o que a lei garante?",
+  "Gere uma imagem para mim",
+  "Gere um PDF completo sobre um tema",
 ];
 
 interface Props {

@@ -72,7 +72,7 @@ export default function ChatInput({ isWelcome, inputRef }: { isWelcome?: boolean
   };
 
   const handleKey = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
+    if (e.key === "Enter") { e.preventDefault(); setText(prev => prev + "\n"); }
   };
 
   return (
