@@ -211,6 +211,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const sendMessage = useCallback(async (content: string, attachments?: FileAttachment[]) => {
     if (!user) return;
+    if (isLoading) return;
     if (!isPro && messagesUsed >= DAILY_LIMIT) {
       const cooldownKey = getCooldownKey(user.id);
       const existing = localStorage.getItem(cooldownKey);

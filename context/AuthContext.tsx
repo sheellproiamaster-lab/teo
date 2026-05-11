@@ -41,8 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const timeout = setTimeout(() => setLoading(false), 5000);
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      clearTimeout(timeout);
       setUser(session?.user ? await mapUser(session.user) : null);
+      setLoading(false);
+    }).catch(() => {
+      clearTimeout(timeout);
       setLoading(false);
     });
 
