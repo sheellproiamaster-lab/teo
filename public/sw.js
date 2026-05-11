@@ -1,4 +1,4 @@
-const CACHE = "teo-v3";
+const CACHE = "teo-v4";
 const PRECACHE = ["/manifest.json", "/teo-avatar.jpeg"];
 
 self.addEventListener("install", (e) => {
