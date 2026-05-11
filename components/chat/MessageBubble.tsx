@@ -4,20 +4,16 @@ import Image from "next/image";
 import type { Message } from "@/context/ChatContext";
 import { useChat } from "@/context/ChatContext";
 
-function detectDocument(content: string): { hasDoc: boolean; type: "pdf" | "word" | null; title: string } {
+function detectDocument(content: string): { hasDoc: boolean; title: string } {
   const pdfMatch = content.match(/\[GERAR_DOCUMENTO:pdf\]/i);
-  const wordMatch = content.match(/\[GERAR_DOCUMENTO:word\]/i);
   const titleMatch = content.match(/^#+ (.+)$/m);
   const title = titleMatch ? titleMatch[1] : "Documento";
-  if (pdfMatch) return { hasDoc: true, type: "pdf", title };
-  if (wordMatch) return { hasDoc: true, type: "word", title };
-  return { hasDoc: false, type: null, title };
+  return { hasDoc: !!pdfMatch, title };
 }
 
 function cleanContent(content: string): string {
   return content
     .replace(/\[GERAR_DOCUMENTO:pdf\]/gi, "")
-    .replace(/\[GERAR_DOCUMENTO:word\]/gi, "")
     .replace(/\[INICIO_DOCUMENTO\][\s\S]*?\[FIM_DOCUMENTO\]/g, "")
     .trim();
 }
@@ -35,15 +31,13 @@ export default function MessageBubble({ msg }: { msg: Message }) {
   const [showOtro, setShowOtro] = useState(false);
   const [otroText, setOtroText] = useState("");
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [wordLoading, setWordLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [lightbox, setLightbox] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const { hasDoc, type: docTypeFromContent, title } = detectDocument(msg.content);
+  const { hasDoc, title } = detectDocument(msg.content);
   const hasDocFinal = hasDoc || !!msg.docType;
   const cleanedContent = cleanContent(msg.content);
-  const docType = msg.docType || docTypeFromContent;
 
   const handleOption = (option: string) => sendMessage(option);
 
@@ -73,28 +67,6 @@ export default function MessageBubble({ msg }: { msg: Message }) {
       alert("Erro ao gerar PDF.");
     } finally {
       setPdfLoading(false);
-    }
-  };
-
-  const handleDownloadWord = async () => {
-    setWordLoading(true);
-    try {
-      const res = await fetch("/api/generate/word", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: extractDocContent(msg.content, msg.docContent), title }),
-      });
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${title || "documento"}.docx`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      alert("Erro ao gerar Word.");
-    } finally {
-      setWordLoading(false);
     }
   };
 
@@ -275,34 +247,18 @@ export default function MessageBubble({ msg }: { msg: Message }) {
 
         {!isUser && hasDocFinal && (
           <div className="flex gap-2 mt-1">
-            {(docType === "pdf" || !docType) && (
-              <button
-                onClick={handleDownloadPDF}
-                disabled={pdfLoading}
-                className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition-all disabled:opacity-60"
-              >
-                {pdfLoading ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : (
-                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 17v-1h8v1H8zm0-3v-1h8v1H8zm0-3V10h5v1H8z"/>
-                  </svg>
-                )}
-                Baixar PDF
-              </button>
-            )}
-            {(docType === "word" || !docType) && (
-              <button
-                onClick={handleDownloadWord}
-                disabled={wordLoading}
-                className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition-all disabled:opacity-60"
-              >
-                {wordLoading ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : (
-                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
-                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM7 15l2-6h1.5l1.5 4.5L14 9h1.5l2 6H16l-1.25-4L13.5 15h-1l-1.25-4L10 15H7z"/>
-                  </svg>
-                )}
-                Baixar Word
-              </button>
-            )}
+            <button
+              onClick={handleDownloadPDF}
+              disabled={pdfLoading}
+              className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition-all disabled:opacity-60"
+            >
+              {pdfLoading ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : (
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 17v-1h8v1H8zm0-3v-1h8v1H8zm0-3V10h5v1H8z"/>
+                </svg>
+              )}
+              Baixar PDF
+            </button>
           </div>
         )}
 

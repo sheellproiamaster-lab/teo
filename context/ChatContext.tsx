@@ -24,7 +24,7 @@ export interface Message {
   questionCards?: QuestionCards | null;
   attachments?: FileAttachment[];
   imageUrl?: string | null;
-  docType?: "pdf" | "word" | null;
+  docType?: "pdf" | null;
   docContent?: string | null;
 }
 

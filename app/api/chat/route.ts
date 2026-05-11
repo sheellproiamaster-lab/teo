@@ -124,20 +124,17 @@ function parseImageRequest(text: string): { content: string; imagePrompt: string
   return { content, imagePrompt };
 }
 
-function parseDocumentRequest(text: string): { content: string; docContent: string; docType: "pdf" | "word" | null } {
+function parseDocumentRequest(text: string): { content: string; docContent: string; docType: "pdf" | null } {
   const pdfMatch = text.match(/\[GERAR_DOCUMENTO:pdf\]/i);
-  const wordMatch = text.match(/\[GERAR_DOCUMENTO:word\]/i);
   const docMatch = text.match(/\[INICIO_DOCUMENTO\]([\s\S]*?)\[FIM_DOCUMENTO\]/);
 
   const docContent = docMatch ? docMatch[1].trim() : "";
   const content = text
     .replace(/\[GERAR_DOCUMENTO:pdf\]/gi, "")
-    .replace(/\[GERAR_DOCUMENTO:word\]/gi, "")
     .replace(/\[INICIO_DOCUMENTO\][\s\S]*?\[FIM_DOCUMENTO\]/g, "")
     .trim();
 
   if (pdfMatch) return { content, docContent, docType: "pdf" };
-  if (wordMatch) return { content, docContent, docType: "word" };
   return { content, docContent: "", docType: null };
 }
 
@@ -242,7 +239,7 @@ async function processResponse(rawText: string): Promise<{
   docContent: string;
   questionCards: { q: string; o: string[] } | null;
   imageUrl?: string;
-  docType?: "pdf" | "word" | null;
+  docType?: "pdf" | null;
 }> {
   const { content: withoutOptions, questionCards } = parseOptions(rawText);
   const { content: withoutImage, imagePrompt } = parseImageRequest(withoutOptions);
