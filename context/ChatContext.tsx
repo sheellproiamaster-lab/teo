@@ -104,6 +104,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setCooldownRemaining(cooldownEnd - Date.now());
     } else {
       localStorage.removeItem(cooldownKey);
+      // Se o limite já foi atingido mas não há cooldown ativo, inicia agora
+      if (stored >= DAILY_LIMIT) {
+        const end = Date.now() + COOLDOWN_MS;
+        localStorage.setItem(cooldownKey, String(end));
+        setCooldownRemaining(COOLDOWN_MS);
+      }
     }
   }, [user]);
 
@@ -232,6 +238,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const newCount = messagesUsed + 1;
       localStorage.setItem(key, String(newCount));
       setMessagesUsed(newCount);
+      if (newCount >= DAILY_LIMIT) {
+        const cooldownKey = getCooldownKey(user.id);
+        if (!localStorage.getItem(cooldownKey)) {
+          const end = Date.now() + COOLDOWN_MS;
+          localStorage.setItem(cooldownKey, String(end));
+          setCooldownRemaining(COOLDOWN_MS);
+        }
+      }
     }
 
     let uploadedAttachments = attachments || [];
