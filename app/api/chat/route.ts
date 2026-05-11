@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
 const getAnthropic = () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -259,6 +261,20 @@ export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
   try {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll(); },
+          setAll(list) { list.forEach(({ name, value, options }) => cookieStore.set(name, value, options)); },
+        },
+      }
+    );
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
     const anthropic = getAnthropic();
 
     const bodyText = await req.text();
