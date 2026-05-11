@@ -87,15 +87,31 @@ function needsSearch(message: string): boolean {
 }
 
 function parseOptions(text: string): { content: string; questionCards: { q: string; o: string[] } | null } {
-  const match = text.match(/\[OPTIONS\]([\s\S]*?)\[\/OPTIONS\]/);
-  if (!match) return { content: text.trim(), questionCards: null };
+  const match = text.match(/\[OPTIONS\]([\s\S]*?)\[\/OPTIONS\]/i);
+  if (!match) {
+    const cleaned = text.replace(/\[OPTIONS\][\s\S]*?(\[\/OPTIONS\]|$)/gi, "").replace(/\[\/OPTIONS\]/gi, "").trim();
+    return { content: cleaned, questionCards: null };
+  }
   try {
     const questionCards = JSON.parse(match[1]);
-    const content = text.replace(/\[OPTIONS\][\s\S]*?\[\/OPTIONS\]/, "").trim();
+    const content = text.replace(/\[OPTIONS\][\s\S]*?\[\/OPTIONS\]/i, "").trim();
     return { content, questionCards };
   } catch {
-    return { content: text.trim(), questionCards: null };
+    const content = text.replace(/\[OPTIONS\][\s\S]*?\[\/OPTIONS\]/i, "").trim();
+    return { content, questionCards: null };
   }
+}
+
+function cleanChatText(text: string): string {
+  return text
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/^[*\-]\s+/gm, "")
+    .replace(/^\d+\.\s+/gm, "")
+    .replace(/^>\s+/gm, "")
+    .replace(/\[OPTIONS\][\s\S]*?(\[\/OPTIONS\]|$)/gi, "")
+    .replace(/\[\/OPTIONS\]/gi, "")
+    .trim();
 }
 
 function parseImageRequest(text: string): { content: string; imagePrompt: string | null } {
@@ -203,7 +219,8 @@ async function processResponse(rawText: string): Promise<{
 }> {
   const { content: withoutOptions, questionCards } = parseOptions(rawText);
   const { content: withoutImage, imagePrompt } = parseImageRequest(withoutOptions);
-  const { content, docContent, docType } = parseDocumentRequest(withoutImage);
+  const { content: rawContent, docContent, docType } = parseDocumentRequest(withoutImage);
+  const content = cleanChatText(rawContent);
 
   if (imagePrompt) {
     const imageUrl = await generateImage(imagePrompt);
@@ -213,7 +230,7 @@ async function processResponse(rawText: string): Promise<{
   return { content, docContent, questionCards, docType };
 }
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
   try {

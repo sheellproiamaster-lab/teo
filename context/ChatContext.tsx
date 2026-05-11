@@ -84,6 +84,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveIdState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const isLoadingRef = useRef(false);
   const [messagesUsed, setMessagesUsed] = useState(0);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const conversationsRef = useRef<Conversation[]>([]);
@@ -211,7 +212,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const sendMessage = useCallback(async (content: string, attachments?: FileAttachment[]) => {
     if (!user) return;
-    if (isLoading) return;
+    if (isLoadingRef.current) return;
     if (!isPro && messagesUsed >= DAILY_LIMIT) {
       const cooldownKey = getCooldownKey(user.id);
       const existing = localStorage.getItem(cooldownKey);
@@ -223,6 +224,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    isLoadingRef.current = true;
     setIsLoading(true);
 
     if (!isPro) {
@@ -288,7 +290,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 50000);
+      const timeout = setTimeout(() => controller.abort(), 90000);
 
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -347,6 +349,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         ...c, messages: [...c.messages, errMsg],
       } : c));
     } finally {
+      isLoadingRef.current = false;
       setIsLoading(false);
     }
   }, [activeId, user, isPro, messagesUsed]);

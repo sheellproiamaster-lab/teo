@@ -41,21 +41,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const timeout = setTimeout(() => setLoading(false), 5000);
+    let mounted = true;
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      clearTimeout(timeout);
-      setUser(session?.user ? await mapUser(session.user) : null);
-      setLoading(false);
+      if (!mounted) return;
+      if (session?.user) {
+        const mapped = await mapUser(session.user);
+        if (mounted) setUser(mapped);
+      } else {
+        if (mounted) setUser(null);
+      }
+      if (mounted) setLoading(false);
     }).catch(() => {
-      clearTimeout(timeout);
-      setLoading(false);
+      if (mounted) setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ? await mapUser(session.user) : null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+      if (event === "SIGNED_OUT") {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      if (session?.user) {
+        const mapped = await mapUser(session.user);
+        if (mounted) setUser(mapped);
+        if (mounted) setLoading(false);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loginWithGoogle = async () => {

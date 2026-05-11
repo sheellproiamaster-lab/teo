@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
   try {
@@ -115,6 +115,9 @@ ${convertMarkdownToHtml(content)}
 </body>
 </html>`;
 
+    const pdfController = new AbortController();
+    const pdfTimeout = setTimeout(() => pdfController.abort(), 55000);
+
     const response = await fetch("https://api.pdfshift.io/v3/convert/pdf", {
       method: "POST",
       headers: {
@@ -128,7 +131,8 @@ ${convertMarkdownToHtml(content)}
         format: "A4",
         margin: { top: "14mm", bottom: "14mm", left: "0mm", right: "0mm" },
       }),
-    });
+      signal: pdfController.signal,
+    }).finally(() => clearTimeout(pdfTimeout));
 
     if (!response.ok) {
       const err = await response.text();
