@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode, useC
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 
+
 export interface QuestionCards {
   q: string;
   o: string[];
@@ -57,12 +58,27 @@ const ChatContext = createContext<ChatContextType | null>(null);
 const DAILY_LIMIT = 15;
 const COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
-function getUsageKey(userId: string) {
-  return `teo_usage_${userId}_${new Date().toDateString()}`;
+async function loadUsageFromDB(userId: string): Promise<{ messagesUsed: number; cooldownEnd: number }> {
+  const today = new Date().toDateString();
+  const { data } = await supabase
+    .from("users")
+    .select("messages_used, cooldown_end, usage_date")
+    .eq("id", userId)
+    .single();
+  if (!data) return { messagesUsed: 0, cooldownEnd: 0 };
+  if (data.usage_date !== today) {
+    supabase.from("users").update({ messages_used: 0, cooldown_end: 0, usage_date: today }).eq("id", userId);
+    return { messagesUsed: 0, cooldownEnd: 0 };
+  }
+  return { messagesUsed: data.messages_used ?? 0, cooldownEnd: data.cooldown_end ?? 0 };
 }
 
-function getCooldownKey(userId: string) {
-  return `teo_cooldown_${userId}`;
+function saveUsage(userId: string, used: number, cooldownEnd: number) {
+  supabase.from("users").update({
+    messages_used: used,
+    cooldown_end: cooldownEnd,
+    usage_date: new Date().toDateString(),
+  }).eq("id", userId);
 }
 
 async function uploadFileToStorage(file: FileAttachment): Promise<string> {
@@ -87,6 +103,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const isLoadingRef = useRef(false);
   const [messagesUsed, setMessagesUsed] = useState(0);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [shouldResetUsage, setShouldResetUsage] = useState(false);
   const conversationsRef = useRef<Conversation[]>([]);
   const isPro = user?.plan === "pro";
 
@@ -94,23 +111,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
-    const key = getUsageKey(user.id);
-    const stored = parseInt(localStorage.getItem(key) || "0");
-    setMessagesUsed(stored);
-
-    const cooldownKey = getCooldownKey(user.id);
-    const cooldownEnd = parseInt(localStorage.getItem(cooldownKey) || "0");
-    if (cooldownEnd > Date.now()) {
-      setCooldownRemaining(cooldownEnd - Date.now());
-    } else {
-      localStorage.removeItem(cooldownKey);
-      // Se o limite já foi atingido mas não há cooldown ativo, inicia agora
-      if (stored >= DAILY_LIMIT) {
+    loadUsageFromDB(user.id).then(({ messagesUsed, cooldownEnd }) => {
+      setMessagesUsed(messagesUsed);
+      if (cooldownEnd > Date.now()) {
+        setCooldownRemaining(cooldownEnd - Date.now());
+      } else if (messagesUsed >= DAILY_LIMIT) {
         const end = Date.now() + COOLDOWN_MS;
-        localStorage.setItem(cooldownKey, String(end));
         setCooldownRemaining(COOLDOWN_MS);
+        saveUsage(user.id, messagesUsed, end);
       }
-    }
+    });
   }, [user]);
 
   useEffect(() => {
@@ -118,19 +128,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const interval = setInterval(() => {
       setCooldownRemaining(prev => {
         if (prev <= 1000) {
-          if (user) {
-            const key = getUsageKey(user.id);
-            localStorage.setItem(key, "0");
-            setMessagesUsed(0);
-            localStorage.removeItem(getCooldownKey(user.id));
-          }
+          setShouldResetUsage(true);
           return 0;
         }
         return prev - 1000;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [cooldownRemaining, user]);
+  }, [cooldownRemaining]);
+
+  useEffect(() => {
+    if (!shouldResetUsage || !user) return;
+    setShouldResetUsage(false);
+    setMessagesUsed(0);
+    saveUsage(user.id, 0, 0);
+  }, [shouldResetUsage, user]);
 
   useEffect(() => {
     if (!user) { setConversations([]); setActiveIdState(null); return; }
@@ -220,12 +232,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     if (isLoadingRef.current) return;
     if (!isPro && messagesUsed >= DAILY_LIMIT) {
-      const cooldownKey = getCooldownKey(user.id);
-      const existing = localStorage.getItem(cooldownKey);
-      if (!existing) {
+      if (cooldownRemaining <= 0) {
         const end = Date.now() + COOLDOWN_MS;
-        localStorage.setItem(cooldownKey, String(end));
         setCooldownRemaining(COOLDOWN_MS);
+        saveUsage(user.id, messagesUsed, end);
       }
       return;
     }
@@ -234,18 +244,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
 
     if (!isPro) {
-      const key = getUsageKey(user.id);
       const newCount = messagesUsed + 1;
-      localStorage.setItem(key, String(newCount));
       setMessagesUsed(newCount);
-      if (newCount >= DAILY_LIMIT) {
-        const cooldownKey = getCooldownKey(user.id);
-        if (!localStorage.getItem(cooldownKey)) {
-          const end = Date.now() + COOLDOWN_MS;
-          localStorage.setItem(cooldownKey, String(end));
-          setCooldownRemaining(COOLDOWN_MS);
-        }
+      let newCooldownEnd = cooldownRemaining > 0 ? Date.now() + cooldownRemaining : 0;
+      if (newCount >= DAILY_LIMIT && cooldownRemaining <= 0) {
+        newCooldownEnd = Date.now() + COOLDOWN_MS;
+        setCooldownRemaining(COOLDOWN_MS);
       }
+      saveUsage(user.id, newCount, newCooldownEnd);
     }
 
     let uploadedAttachments = attachments || [];
@@ -297,10 +303,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       } : c));
     }
 
-    await supabase.from("messages").insert({
+    const { error: userMsgError } = await supabase.from("messages").insert({
       id: userMsg.id, conversation_id: targetId, user_id: user.id,
       role: "user", content: content || "arquivo", type: "text",
     });
+    if (userMsgError) console.error("[messages insert user]", userMsgError);
 
     try {
       const controller = new AbortController();
@@ -328,7 +335,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         docContent: data.docContent ?? null,
       };
 
-      await supabase.from("messages").insert({
+      const { error: asstMsgError } = await supabase.from("messages").insert({
         id: assistantMsg.id,
         conversation_id: targetId,
         user_id: user.id,
@@ -343,6 +350,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           docContent: assistantMsg.docContent ?? null,
         },
       });
+      if (asstMsgError) console.error("[messages insert assistant]", asstMsgError);
 
       await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", targetId);
 
@@ -366,7 +374,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       isLoadingRef.current = false;
       setIsLoading(false);
     }
-  }, [activeId, user, isPro, messagesUsed]);
+  }, [activeId, user, isPro, messagesUsed, cooldownRemaining]);
 
   return (
     <ChatContext.Provider value={{
