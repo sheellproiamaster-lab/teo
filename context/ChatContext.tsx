@@ -66,11 +66,14 @@ async function loadUsageFromDB(userId: string): Promise<{ messagesUsed: number; 
     .eq("id", userId)
     .single();
   if (!data) return { messagesUsed: 0, cooldownEnd: 0 };
+  const cooldownEnd = data.cooldown_end ?? 0;
   if (data.usage_date !== today) {
-    supabase.from("users").update({ messages_used: 0, cooldown_end: 0, usage_date: today }).eq("id", userId);
-    return { messagesUsed: 0, cooldownEnd: 0 };
+    // Nova data: reseta contagem mas mantém cooldown se ainda ativo
+    const activeCooldown = cooldownEnd > Date.now() ? cooldownEnd : 0;
+    supabase.from("users").update({ messages_used: 0, cooldown_end: activeCooldown, usage_date: today }).eq("id", userId);
+    return { messagesUsed: 0, cooldownEnd: activeCooldown };
   }
-  return { messagesUsed: data.messages_used ?? 0, cooldownEnd: data.cooldown_end ?? 0 };
+  return { messagesUsed: data.messages_used ?? 0, cooldownEnd };
 }
 
 function saveUsage(userId: string, used: number, cooldownEnd: number) {
