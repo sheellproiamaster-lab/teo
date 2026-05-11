@@ -58,8 +58,13 @@ const ChatContext = createContext<ChatContextType | null>(null);
 const DAILY_LIMIT = 15;
 const COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
+function todayString() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 async function loadUsageFromDB(userId: string): Promise<{ messagesUsed: number; cooldownEnd: number }> {
-  const today = new Date().toDateString();
+  const today = todayString();
   const { data } = await supabase
     .from("users")
     .select("messages_used, cooldown_end, usage_date")
@@ -68,19 +73,18 @@ async function loadUsageFromDB(userId: string): Promise<{ messagesUsed: number; 
   if (!data) return { messagesUsed: 0, cooldownEnd: 0 };
   const cooldownEnd = data.cooldown_end ?? 0;
   if (data.usage_date !== today) {
-    // Nova data: reseta contagem mas mantém cooldown se ainda ativo
     const activeCooldown = cooldownEnd > Date.now() ? cooldownEnd : 0;
-    supabase.from("users").update({ messages_used: 0, cooldown_end: activeCooldown, usage_date: today }).eq("id", userId);
+    await supabase.from("users").update({ messages_used: 0, cooldown_end: activeCooldown, usage_date: today }).eq("id", userId);
     return { messagesUsed: 0, cooldownEnd: activeCooldown };
   }
   return { messagesUsed: data.messages_used ?? 0, cooldownEnd };
 }
 
-function saveUsage(userId: string, used: number, cooldownEnd: number) {
-  supabase.from("users").update({
+async function saveUsage(userId: string, used: number, cooldownEnd: number) {
+  await supabase.from("users").update({
     messages_used: used,
     cooldown_end: cooldownEnd,
-    usage_date: new Date().toDateString(),
+    usage_date: todayString(),
   }).eq("id", userId);
 }
 
@@ -114,14 +118,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
-    loadUsageFromDB(user.id).then(({ messagesUsed, cooldownEnd }) => {
+    loadUsageFromDB(user.id).then(async ({ messagesUsed, cooldownEnd }) => {
       setMessagesUsed(messagesUsed);
       if (cooldownEnd > Date.now()) {
         setCooldownRemaining(cooldownEnd - Date.now());
       } else if (messagesUsed >= DAILY_LIMIT) {
         const end = Date.now() + COOLDOWN_MS;
         setCooldownRemaining(COOLDOWN_MS);
-        saveUsage(user.id, messagesUsed, end);
+        await saveUsage(user.id, messagesUsed, end);
       }
     });
   }, [user]);
@@ -144,7 +148,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!shouldResetUsage || !user) return;
     setShouldResetUsage(false);
     setMessagesUsed(0);
-    saveUsage(user.id, 0, 0);
+    saveUsage(user.id, 0, 0).catch(console.error);
   }, [shouldResetUsage, user]);
 
   useEffect(() => {
@@ -238,7 +242,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (cooldownRemaining <= 0) {
         const end = Date.now() + COOLDOWN_MS;
         setCooldownRemaining(COOLDOWN_MS);
-        saveUsage(user.id, messagesUsed, end);
+        await saveUsage(user.id, messagesUsed, end);
       }
       return;
     }
@@ -254,7 +258,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         newCooldownEnd = Date.now() + COOLDOWN_MS;
         setCooldownRemaining(COOLDOWN_MS);
       }
-      saveUsage(user.id, newCount, newCooldownEnd);
+      await saveUsage(user.id, newCount, newCooldownEnd);
     }
 
     let uploadedAttachments = attachments || [];
