@@ -16,6 +16,18 @@ const PARCEIROS = [
     avatar: "MM",
     cor: "from-blue-600 to-cyan-500",
   },
+  {
+    id: 2,
+    nome: "Amanda Mendes",
+    funcao: "Nutricionista",
+    descricao: "Nutrição Infantil Especializada, Nutrição Clínica e Aspectos Endocrinológicos, Nutrição Comportamental, Nutrição Esportiva e Treinamento Físico.",
+    cidade: "Cidade Ocidental, GO",
+    atendimento: "Online",
+    whatsapp: "5561999259569",
+    instagram: "https://www.instagram.com/mandanutri?igsh=YXM3Y2l1dDAzczR1",
+    avatar: "AM",
+    cor: "from-green-500 to-emerald-400",
+  },
 ];
 
 type Parceiro = typeof PARCEIROS[0];
