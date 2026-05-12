@@ -22,7 +22,7 @@ const PARCEIROS = [
     funcao: "Nutricionista",
     descricao: "Nutrição Infantil Especializada, Nutrição Clínica e Aspectos Endocrinológicos, Nutrição Comportamental, Nutrição Esportiva e Treinamento Físico.",
     cidade: "Cidade Ocidental, GO",
-    atendimento: "Online",
+    atendimento: "Online para todo o Brasil",
     whatsapp: "5561999259569",
     instagram: "https://www.instagram.com/mandanutri?igsh=YXM3Y2l1dDAzczR1",
     avatar: "AM",
