@@ -127,9 +127,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!user) return;
     loadUsageFromDB(user.id).then(async ({ messagesUsed, cooldownEnd }) => {
       setMessagesUsed(messagesUsed);
-      if (cooldownEnd > Date.now()) {
+      if (cooldownEnd > 0 && cooldownEnd > Date.now()) {
+        // Cooldown ainda ativo — retoma contagem
         setCooldownRemaining(cooldownEnd - Date.now());
+      } else if (cooldownEnd > 0 && cooldownEnd <= Date.now()) {
+        // Cooldown expirou enquanto o app estava fechado — libera mensagens
+        setMessagesUsed(0);
+        await saveUsage(user.id, 0, 0);
       } else if (messagesUsed >= DAILY_LIMIT) {
+        // Atingiu o limite sem cooldown registrado — inicia um
         const end = Date.now() + COOLDOWN_MS;
         setCooldownRemaining(COOLDOWN_MS);
         await saveUsage(user.id, messagesUsed, end);
