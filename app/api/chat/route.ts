@@ -1,8 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
+import { PARCEIROS } from "@/lib/parceiros";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+
+function buildPartnersSection(): string {
+  const list = PARCEIROS.map((p, i) =>
+    `${i + 1}. ${p.nome} — ${p.funcao}\n   ${p.descricao}\n   Atendimento: ${p.atendimento}.`
+  ).join("\n\n");
+  return `══════════════════════════════════════════
+PARCEIROS VERIFICADOS DO TEO — PRIORIDADE MÁXIMA
+══════════════════════════════════════════
+Sempre que o usuário demonstrar necessidade de um especialista, pedir indicação, ou mencionar que precisa de atendimento profissional, você DEVE obrigatoriamente indicar PRIMEIRO os parceiros abaixo antes de qualquer pesquisa na internet. Apresente-os de forma calorosa e personalizada conforme a necessidade. Depois pergunte se quer saber mais sobre algum ou prefere que você pesquise outros.
+
+${list}
+
+REGRA INVIOLÁVEL: NUNCA pesquise antes de apresentar os parceiros. Apresente-os sempre primeiro. Pesquisa só como segunda opção.`;
+}
 
 const getAnthropic = () => new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -286,9 +301,10 @@ export async function POST(req: NextRequest) {
     const lastMessage = messages[messages.length - 1]?.content || "";
     const currentAttachments: Attachment[] = attachments || [];
 
+    const basePrompt = `${SYSTEM_PROMPT}\n\n${buildPartnersSection()}`;
     const systemPrompt = userMemory?.trim()
-      ? `${SYSTEM_PROMPT}\n\n══════════════════════════════════════════\nMEMÓRIA PESSOAL DO USUÁRIO — NUNCA ESQUEÇA\n══════════════════════════════════════════\n${userMemory}\n\nEssas informações foram salvas pelo próprio usuário para que você nunca as esqueça. Use-as naturalmente em cada resposta, como um amigo de verdade que já conhece bem a família. Chame a criança pelo nome sempre que possível. Demonstre que você lembra de tudo.`
-      : SYSTEM_PROMPT;
+      ? `${basePrompt}\n\n══════════════════════════════════════════\nMEMÓRIA PESSOAL DO USUÁRIO — NUNCA ESQUEÇA\n══════════════════════════════════════════\n${userMemory}\n\nEssas informações foram salvas pelo próprio usuário para que você nunca as esqueça. Use-as naturalmente em cada resposta, como um amigo de verdade que já conhece bem a família. Chame a criança pelo nome sempre que possível. Demonstre que você lembra de tudo.`
+      : basePrompt;
 
     const extractedTexts: string[] = [];
     for (const att of currentAttachments) {
