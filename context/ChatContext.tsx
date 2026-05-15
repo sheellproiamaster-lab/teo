@@ -90,11 +90,15 @@ async function saveUsage(userId: string, used: number, cooldownEnd: number) {
 
 async function uploadFileToStorage(file: FileAttachment): Promise<string> {
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
     const res = await fetch("/api/upload", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ file }),
+      signal: controller.signal,
     });
+    clearTimeout(timer);
     const data = await res.json();
     return data.url || file.url;
   } catch {
@@ -261,34 +265,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       await saveUsage(user.id, newCount, newCooldownEnd);
     }
 
-    let uploadedAttachments = attachments || [];
-    if (attachments && attachments.length > 0) {
-      uploadedAttachments = await Promise.all(
-        attachments.map(async att => {
-          const publicUrl = await uploadFileToStorage(att);
-          return { ...att, url: publicUrl };
-        })
-      );
-    }
-
-    const userMsg: Message = {
-      id: crypto.randomUUID(), role: "user", content,
-      timestamp: new Date().toISOString(),
-      attachments: uploadedAttachments,
-    };
-
     const targetId: string = activeId ?? crypto.randomUUID();
     const isNew = !activeId;
     const currentConv = conversationsRef.current.find(c => c.id === targetId);
 
-    // Limita histórico a 6 mensagens para ser mais rápido
-    const apiMessages = [...(currentConv?.messages ?? []), userMsg]
-      .slice(-6)
-      .map(m => ({
-        role: m.role,
-        content: m.content,
-        attachments: m.attachments || [],
-      }));
+    // Mostra a mensagem do usuário imediatamente (antes do upload)
+    const userMsg: Message = {
+      id: crypto.randomUUID(), role: "user", content,
+      timestamp: new Date().toISOString(),
+      attachments: attachments || [],
+    };
 
     if (isNew || !currentConv) {
       const title = content.slice(0, 45) + (content.length > 45 ? "…" : "") || (attachments?.length ? `${attachments.length} arquivo(s)` : "Nova conversa");
@@ -317,6 +303,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (userMsgError) console.error("[messages insert user]", userMsgError);
 
     try {
+      // Faz upload dos arquivos após mostrar a mensagem na tela
+      let uploadedAttachments = attachments || [];
+      if (attachments && attachments.length > 0) {
+        uploadedAttachments = await Promise.all(
+          attachments.map(async att => {
+            const publicUrl = await uploadFileToStorage(att);
+            return { ...att, url: publicUrl };
+          })
+        );
+      }
+
+      const apiMessages = [...(currentConv?.messages ?? []), { ...userMsg, attachments: uploadedAttachments }]
+        .slice(-6)
+        .map(m => ({
+          role: m.role,
+          content: m.content,
+          attachments: m.attachments || [],
+        }));
+
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 90000);
 

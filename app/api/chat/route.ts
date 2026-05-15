@@ -117,10 +117,10 @@ function cleanChatText(text: string): string {
 }
 
 function parseImageRequest(text: string): { content: string; imagePrompt: string | null } {
-  const match = text.match(/\[GERAR_IMAGEM:([\s\S]*?)\]/);
+  const match = text.match(/\[GERAR_IMAGEM:([\s\S]*?)\]/i);
   if (!match) return { content: text.trim(), imagePrompt: null };
   const imagePrompt = match[1].trim();
-  const content = text.replace(/\[GERAR_IMAGEM:[\s\S]*?\]/, "").trim();
+  const content = text.replace(/\[GERAR_IMAGEM:[\s\S]*?\]/i, "").trim();
   return { content, imagePrompt };
 }
 
@@ -248,7 +248,11 @@ async function processResponse(rawText: string): Promise<{
 
   if (imagePrompt) {
     const imageUrl = await generateImage(imagePrompt);
-    return { content, docContent, questionCards, imageUrl: imageUrl || undefined, docType };
+    if (!imageUrl) {
+      const failMsg = "Não consegui gerar a imagem agora. Tente novamente em instantes.";
+      return { content: content ? `${content}\n\n${failMsg}` : failMsg, docContent, questionCards, docType };
+    }
+    return { content, docContent, questionCards, imageUrl, docType };
   }
 
   return { content, docContent, questionCards, docType };

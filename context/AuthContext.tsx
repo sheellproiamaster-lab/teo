@@ -43,6 +43,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
+    const fallbackTimer = setTimeout(() => {
+      if (mounted) setLoading(false);
+    }, 10000);
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
       if (session?.user) {
@@ -52,26 +56,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (mounted) setUser(null);
       }
       if (mounted) setLoading(false);
+      clearTimeout(fallbackTimer);
     }).catch(() => {
       if (mounted) setLoading(false);
+      clearTimeout(fallbackTimer);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
-      if (event === "SIGNED_OUT") {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-      if (session?.user) {
-        const mapped = await mapUser(session.user);
-        if (mounted) setUser(mapped);
+      try {
+        if (event === "SIGNED_OUT" || !session?.user) {
+          if (mounted) setUser(null);
+        } else {
+          const mapped = await mapUser(session.user);
+          if (mounted) setUser(mapped);
+        }
+      } catch {
+        if (mounted) setUser(null);
+      } finally {
+        clearTimeout(fallbackTimer);
         if (mounted) setLoading(false);
       }
     });
 
     return () => {
       mounted = false;
+      clearTimeout(fallbackTimer);
       subscription.unsubscribe();
     };
   }, []);

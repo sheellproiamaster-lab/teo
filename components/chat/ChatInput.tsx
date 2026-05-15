@@ -5,6 +5,32 @@ import { useAuth } from "@/context/AuthContext";
 
 const MAX_FILES = 5;
 
+async function compressImage(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1280;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+          else { width = Math.round(width * MAX / height); height = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
+      };
+      img.onerror = () => resolve(reader.result as string);
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+}
+
 function formatCooldown(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);
@@ -51,11 +77,13 @@ export default function ChatInput({ isWelcome, inputRef }: { isWelcome?: boolean
     const arr = Array.from(selected).slice(0, MAX_FILES - files.length);
     const newFiles: FileAttachment[] = await Promise.all(arr.map(async file => {
       const isImage = file.type.startsWith("image/");
-      const url = await new Promise<string>(resolve => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(file);
-      });
+      const url = isImage
+        ? await compressImage(file)
+        : await new Promise<string>(resolve => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
       return { name: file.name, type: file.type, url, isImage };
     }));
     setFiles(prev => [...prev, ...newFiles].slice(0, MAX_FILES));
