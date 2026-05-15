@@ -366,7 +366,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         docContent: data.docContent ?? null,
       };
 
-      const { error: asstMsgError } = await supabase.from("messages").insert({
+      setConversations(prev => prev.map(c => c.id === targetId ? {
+        ...c, messages: [...c.messages, assistantMsg],
+      } : c));
+
+      // Reset loading before background DB saves so UI unblocks immediately
+      isLoadingRef.current = false;
+      setIsLoading(false);
+
+      supabase.from("messages").insert({
         id: assistantMsg.id,
         conversation_id: targetId,
         user_id: user.id,
@@ -380,14 +388,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           questionCards: assistantMsg.questionCards ?? null,
           docContent: assistantMsg.docContent ?? null,
         },
-      });
-      if (asstMsgError) console.error("[messages insert assistant]", asstMsgError);
+      }).then(({ error }) => { if (error) console.error("[messages insert assistant]", error); });
 
-      await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", targetId);
-
-      setConversations(prev => prev.map(c => c.id === targetId ? {
-        ...c, messages: [...c.messages, assistantMsg],
-      } : c));
+      supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", targetId);
 
     } catch (err: any) {
       const isTimeout = err?.name === "AbortError";

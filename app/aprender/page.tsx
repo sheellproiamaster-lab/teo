@@ -41,6 +41,7 @@ function AprenderContent() {
   const router = useRouter();
   const { user } = useAuth();
   const { sendMessage, active, newConversation, isLoading, isBlocked, messagesUsed, cooldownRemaining } = useChat();
+  const isPro = user?.plan === "pro";
   const [text, setText] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const DAILY_LIMIT = 15;
@@ -89,7 +90,7 @@ function AprenderContent() {
           <p className="text-white/70 text-xs">Seu professor particular</p>
         </div>
         <span className="text-xs bg-white/20 px-2 py-1 rounded-full font-semibold">
-          {DAILY_LIMIT - messagesUsed} msgs
+          {isPro ? "⭐ VIP" : `${DAILY_LIMIT - messagesUsed} msgs`}
         </span>
       </div>
 
@@ -167,7 +168,7 @@ function AprenderContent() {
             </button>
           </div>
           <p className="text-center text-xs text-slate-400 mt-2">
-            {isBlocked ? "Limite atingido · Assine o VIP" : `${DAILY_LIMIT - messagesUsed} mensagens restantes hoje`}
+            {isBlocked ? "Limite atingido · Assine o VIP" : isPro ? "⭐ VIP — mensagens ilimitadas" : `${DAILY_LIMIT - messagesUsed} mensagens restantes hoje`}
           </p>
         </div>
       </div>
