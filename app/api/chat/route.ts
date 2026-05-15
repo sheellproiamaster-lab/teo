@@ -40,16 +40,16 @@ TECHNICAL REQUIREMENTS:
 - Cinema quality, magazine cover level quality`;
 
     const response = await openai.images.generate({
-      model: "dall-e-3",
+      model: "gpt-image-1",
       prompt: enrichedPrompt,
-      n: 1,
-      size: "1792x1024",
-      quality: "hd",
-      style: "vivid",
+      size: "1024x1024",
+      quality: "high",
     });
 
-    const tempUrl = response.data?.[0]?.url;
-    if (!tempUrl) return null;
+    console.log("[generateImage] response:", JSON.stringify({ id: response.created, hasData: !!response.data?.[0] }));
+
+    const b64 = response.data?.[0]?.b64_json;
+    if (!b64) return null;
 
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(
@@ -57,15 +57,14 @@ TECHNICAL REQUIREMENTS:
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const imgRes = await fetch(tempUrl);
-    const buffer = await imgRes.arrayBuffer();
+    const buffer = Buffer.from(b64, "base64");
     const path = `generated/${Date.now()}.png`;
 
     const { error } = await supabase.storage
       .from("teo-uploads")
-      .upload(path, Buffer.from(buffer), { contentType: "image/png", upsert: false });
+      .upload(path, buffer, { contentType: "image/png", upsert: false });
 
-    if (error) return tempUrl;
+    if (error) return `data:image/png;base64,${b64}`;
 
     const { data } = supabase.storage.from("teo-uploads").getPublicUrl(path);
     return data.publicUrl;
