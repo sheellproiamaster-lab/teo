@@ -5,6 +5,7 @@ import { useChat, type Conversation } from "@/context/ChatContext";
 import SubscriptionModal from "./SubscriptionModal";
 import UsageModal from "./UsageModal";
 import MemoriaModal from "./MemoriaModal";
+import ExcluirContaModal from "./ExcluirContaModal";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -20,6 +21,7 @@ export default function ChatSidebar({ open, onClose }: Props) {
   const [subOpen, setSubOpen] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const [memoriaOpen, setMemoriaOpen] = useState(false);
+  const [excluirOpen, setExcluirOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [renameId, setRenameId] = useState<string | null>(null);
@@ -41,6 +43,12 @@ export default function ChatSidebar({ open, onClose }: Props) {
   };
 
   const handleLogout = () => {
+    logout();
+    router.replace("/auth");
+  };
+
+  const handleDeleteAccount = async () => {
+    await fetch("/api/account/delete", { method: "DELETE" });
     logout();
     router.replace("/auth");
   };
@@ -129,11 +137,17 @@ export default function ChatSidebar({ open, onClose }: Props) {
           <div className="h-px bg-slate-100 my-1" />
           <p className="text-xs text-slate-400 px-3 truncate">{user?.email}</p>
           <button onClick={handleLogout} className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">Sair</button>
+          <button onClick={() => setExcluirOpen(true)} className="w-full text-left px-3 py-2 rounded-xl text-sm text-red-300 hover:text-red-500 hover:bg-red-50 transition-colors">Excluir minha conta</button>
         </div>
       </aside>
 
       <SubscriptionModal open={subOpen} onClose={() => setSubOpen(false)} />
       <UsageModal open={usageOpen} onClose={() => setUsageOpen(false)} />
+      <ExcluirContaModal
+        open={excluirOpen}
+        onClose={() => setExcluirOpen(false)}
+        onConfirm={handleDeleteAccount}
+      />
       <MemoriaModal
         open={memoriaOpen}
         onClose={() => setMemoriaOpen(false)}
