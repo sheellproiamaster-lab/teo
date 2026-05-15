@@ -282,9 +282,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Arquivo muito grande. Use arquivos menores que 15MB." }, { status: 413 });
     }
 
-    const { messages, attachments } = JSON.parse(bodyText);
+    const { messages, attachments, userMemory } = JSON.parse(bodyText);
     const lastMessage = messages[messages.length - 1]?.content || "";
     const currentAttachments: Attachment[] = attachments || [];
+
+    const systemPrompt = userMemory?.trim()
+      ? `${SYSTEM_PROMPT}\n\n══════════════════════════════════════════\nMEMÓRIA PESSOAL DO USUÁRIO — NUNCA ESQUEÇA\n══════════════════════════════════════════\n${userMemory}\n\nEssas informações foram salvas pelo próprio usuário para que você nunca as esqueça. Use-as naturalmente em cada resposta, como um amigo de verdade que já conhece bem a família. Chame a criança pelo nome sempre que possível. Demonstre que você lembra de tudo.`
+      : SYSTEM_PROMPT;
 
     const extractedTexts: string[] = [];
     for (const att of currentAttachments) {
@@ -313,7 +317,7 @@ export async function POST(req: NextRequest) {
       const final = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 8000,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: [
           ...historyWithAttachments.slice(0, -1),
           { role: "user", content: `${lastMessage}\n\n[Resultado da pesquisa na internet]: ${searchResults}` },
@@ -327,7 +331,7 @@ export async function POST(req: NextRequest) {
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 8000,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: historyWithAttachments,
       tools: currentAttachments.length === 0 ? [
         {
@@ -349,7 +353,7 @@ export async function POST(req: NextRequest) {
       const final = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 8000,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: [
           ...historyWithAttachments,
           { role: "assistant", content: response.content },

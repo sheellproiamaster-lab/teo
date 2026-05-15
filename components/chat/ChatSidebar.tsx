@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useChat, type Conversation } from "@/context/ChatContext";
 import SubscriptionModal from "./SubscriptionModal";
 import UsageModal from "./UsageModal";
+import MemoriaModal from "./MemoriaModal";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -15,9 +16,10 @@ interface Props {
 export default function ChatSidebar({ open, onClose }: Props) {
   const router = useRouter();
   const { user, logout } = useAuth();
-  const { conversations, activeId, setActiveId, newConversation, deleteConversation, renameConversation, toggleFavorite } = useChat();
+  const { conversations, activeId, setActiveId, newConversation, deleteConversation, renameConversation, toggleFavorite, userMemory, saveMemory } = useChat();
   const [subOpen, setSubOpen] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
+  const [memoriaOpen, setMemoriaOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [renameId, setRenameId] = useState<string | null>(null);
@@ -114,8 +116,12 @@ export default function ChatSidebar({ open, onClose }: Props) {
           <button onClick={() => setUsageOpen(true)} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors flex items-center gap-2">
             <span>📊</span> Uso
           </button>
+          <button onClick={() => setMemoriaOpen(true)} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold text-purple-600 hover:bg-purple-50 transition-colors flex items-center gap-2">
+            <span>🧠</span> Memória do Teo
+            {userMemory && <span className="ml-auto w-2 h-2 rounded-full bg-purple-400 flex-shrink-0" />}
+          </button>
           <Link href="/aprender" onClick={onClose} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold text-cyan-600 hover:bg-cyan-50 transition-colors flex items-center gap-2">
-            <span>🧠</span> Aprenda com o Teo
+            <span>📚</span> Aprenda com o Teo
           </Link>
           <Link href="/parceiros" onClick={onClose} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white hover:opacity-90 shadow-sm">
             <span>🤝</span> Parceiros do Teo
@@ -128,6 +134,12 @@ export default function ChatSidebar({ open, onClose }: Props) {
 
       <SubscriptionModal open={subOpen} onClose={() => setSubOpen(false)} />
       <UsageModal open={usageOpen} onClose={() => setUsageOpen(false)} />
+      <MemoriaModal
+        open={memoriaOpen}
+        onClose={() => setMemoriaOpen(false)}
+        initialMemory={userMemory}
+        onSave={saveMemory}
+      />
     </>
   );
 }

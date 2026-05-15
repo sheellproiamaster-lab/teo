@@ -45,6 +45,7 @@ interface ChatContextType {
   isBlocked: boolean;
   cooldownRemaining: number;
   messagesUsed: number;
+  userMemory: string;
   setActiveId: (id: string | null) => void;
   loadMessages: (convId: string) => Promise<void>;
   newConversation: () => void;
@@ -52,6 +53,7 @@ interface ChatContextType {
   renameConversation: (id: string, title: string) => void;
   toggleFavorite: (id: string) => void;
   sendMessage: (content: string, attachments?: FileAttachment[]) => Promise<void>;
+  saveMemory: (memory: string) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -115,6 +117,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [messagesUsed, setMessagesUsed] = useState(0);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [shouldResetUsage, setShouldResetUsage] = useState(false);
+  const [userMemory, setUserMemory] = useState("");
   const conversationsRef = useRef<Conversation[]>([]);
   const isPro = user?.plan === "pro";
 
@@ -176,6 +179,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       })));
     };
     load();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) { setUserMemory(""); return; }
+    (async () => {
+      try {
+        const { data } = await supabase.from("users").select("memory").eq("id", user.id).single();
+        if (data?.memory) setUserMemory(data.memory);
+      } catch {}
+    })();
+  }, [user]);
+
+  const saveMemory = useCallback(async (memory: string) => {
+    if (!user) return;
+    setUserMemory(memory);
+    await supabase.from("users").update({ memory }).eq("id", user.id);
   }, [user]);
 
   const loadMessages = useCallback(async (convId: string) => {
@@ -328,7 +347,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, attachments: uploadedAttachments }),
+        body: JSON.stringify({ messages: apiMessages, attachments: uploadedAttachments, userMemory }),
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -391,9 +410,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   return (
     <ChatContext.Provider value={{
       conversations, activeId, active, isLoading, isBlocked,
-      cooldownRemaining, messagesUsed,
+      cooldownRemaining, messagesUsed, userMemory,
       setActiveId, loadMessages, newConversation, deleteConversation,
-      renameConversation, toggleFavorite, sendMessage,
+      renameConversation, toggleFavorite, sendMessage, saveMemory,
     }}>
       {children}
     </ChatContext.Provider>
